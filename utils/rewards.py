@@ -85,6 +85,8 @@ def reward_len(completions, **kwargs):
 
 
 def is_tag_usage_valid(text: str, tag: str):
+    # this checks that if a tag is opened, it is also closed Eg. <think></think>
+    # and that tags are never nested
     pattern = fr'</?{tag}>'
     tags = list(re.finditer(pattern, text))
     stack = []
@@ -101,11 +103,12 @@ def is_tag_usage_valid(text: str, tag: str):
 
 
 def has_tag(text: str, tag: str):
+    # this checks that tags are present
     pattern = fr'<{tag}>.*?</{tag}>'
     return 1 if re.search(pattern, text, re.DOTALL) else 0
 
 
-def formatting_reward(completions, **kwargs):
+def formatting_reward(completions: list, **kwargs):
     rewards = []
     for completion in completions:
         reward = (is_tag_usage_valid(completion, 'think') +
@@ -119,7 +122,8 @@ def formatting_reward(completions, **kwargs):
     return rewards
 
 
-def is_answer_yes(text):
+def is_answer_yes(text: str):
+    # this checks if the answer is positive
     match = re.search(r'<answer>\s*(yes|no)\s*</answer>', text, re.IGNORECASE)
     if match:
         return match.group(1).strip().lower() == 'yes'
