@@ -108,14 +108,26 @@ def has_tag(text: str, tag: str):
     return 1 if re.search(pattern, text, re.DOTALL) else 0
 
 
+def is_single_valid_answer(text: str):
+    pattern = r'</?answer>'
+    tags = list(re.finditer(pattern, text))
+
+    if len(tags) != 2:
+        return 0  # must have exactly one opening and one closing tag
+
+    # Ensure correct order and no nesting
+    return 1 if tags[0].group() == '<answer>' and tags[1].group() == '</answer>' else 0
+
+
 def formatting_reward(completions: list, **kwargs):
     rewards = []
     for completion in completions:
         reward = (is_tag_usage_valid(completion, 'think') +
                   is_tag_usage_valid(completion, 'answer') +
                   has_tag(completion, 'think') +
-                  has_tag(completion, 'answer')
-                  ) / 4.0
+                  has_tag(completion, 'answer') +
+                  is_single_valid_answer(completion)
+                  ) / 5.0
 
         rewards.append(reward)
 
