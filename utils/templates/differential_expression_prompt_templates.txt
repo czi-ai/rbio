@@ -1,13 +1,13 @@
 Does a perturbation of gene {0} result in changes in gene {1}?
 If I knock out gene {0} does the expression of gene {1} change?
 Is the expression of gene {1} influenced by perturbations of gene {0}?
-What effect does the disruption of gene {0} have on the activity of gene {1}?
-How does silencing gene {0} impact the expression level of gene {1}?
+Does the disruption of gene {0} have an effect on the activity of gene {1}?
+Does silencing gene {0} impact the expression level of gene {1}?
 Is gene {1} differentially expressed when gene {0} is knocked down?
 Can altering gene {0} modulate the transcription of gene {1}?
 Does the loss of function of gene {0} influence gene {1} expression?
 Is there a downstream effect on gene {1} when gene {0} is perturbed?
-What changes occur in gene {1} following interference with gene {0}?
+Do changes occur in gene {1} following interference with gene {0}?
 Does modifying gene {0} trigger transcriptional changes in gene {1}?
-How is gene {1} regulated in response to perturbation of gene {0}?
+Is gene {1} regulation changed in response to perturbation of gene {0}?
 When gene {0} is targeted, does gene {1} show altered expression?
