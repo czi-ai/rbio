@@ -47,3 +47,8 @@ If the flag --sanity-check=True, the model will only use a small amount of the t
 ```
 python train_grpo.py --task=gene_dir_change --sanity-check=True --strict-binary=True
 ```
+For distributed training one can launch:
+
+```
+accelerate launch train_grpo.py --task=gene_dir_change --sanity-check=True --strict-binary=True
+```
