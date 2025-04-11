@@ -92,7 +92,7 @@ def extract_dataset_from_pertqa(dataset_name:str, split:str):
 def create_differential_expression_dataset_csv_dataset(perqa_dataset_name:str, dataset_savepath: os.PathLike, split:str):
     pertqa_dataset_filtered = extract_dataset_from_pertqa(perqa_dataset_name, split)
 
-    dataset = {'prompt': [], 'label': [], 'dataset_name': []}
+    dataset = {'prompt': [], 'label': [], 'dataset_name': [], 'gene_perturbed': [], 'gene_monitored': []}
 
     for i in range(len(pertqa_dataset_filtered)):
         for prompt_template in prompt_templates(
