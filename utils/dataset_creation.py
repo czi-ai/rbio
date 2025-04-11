@@ -109,6 +109,8 @@ def create_differential_expression_dataset_csv_dataset(perqa_dataset_name:str, d
             dataset['prompt'].append(build_prompt(question))
             dataset['label'].append(label)
             dataset['dataset_name'].append(perqa_dataset_name)
+            dataset['gene_perturbed'].append(curr_data['pert'])
+            dataset['gene_monitored'].append(curr_data['gene'])
 
     prompt_dataset = pd.DataFrame(dataset)
     prompt_dataset.to_csv(dataset_savepath, index=False)
