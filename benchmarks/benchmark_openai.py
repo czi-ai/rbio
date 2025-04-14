@@ -1,3 +1,4 @@
+from tqdm import tqdm
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 import os
@@ -30,9 +31,14 @@ def benchmark_openai(
         llm_api_key:str = os.environ['LLM_ENDPOINT_KEY'],
 ):
 
-    llm = ChatOpenAI(base_url=llm_endpoint, api_key=llm_api_key, model=llm_model, temperature=0.0)
+    llm = ChatOpenAI(
+        base_url=llm_endpoint,
+        api_key=llm_api_key,
+        model=llm_model,
+        temperature=0.0
+    )
 
-    dataset = pd.read_csv('file_path.csv')
+    dataset = pd.read_csv(dataset_path)
 
     stats = {
         'fp': 0,
@@ -42,7 +48,7 @@ def benchmark_openai(
         'unanswered': 0,
     }
 
-    for index, row in dataset.iterrows():
+    for index, row in tqdm(dataset.iterrows(), total=dataset.shape[0]):
         system_prompt = row['system_prompt']
         user_prompt = row['user_prompt']
         label = row['label']

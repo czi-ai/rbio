@@ -69,7 +69,19 @@ def extract_dataset_from_pertqa(dataset_name:str, split:str):
     return perturb_qa_filtered
 
 
-def create_differential_expression_dataset_csv_dataset(perqa_dataset_name:str, dataset_savepath: os.PathLike, split:str):
+def create_differential_expression_dataset_csv_dataset(
+        perqa_dataset_name:str,
+        dataset_savepath: os.PathLike,
+        split:str,
+        system_prompt_path:os.PathLike = os.path.join(
+            os.path.dirname(__file__),
+            'templates/system_prompts/system_prompt_deepseek_adapted.txt'
+        ),
+        user_prompt_template_path:os.PathLike = os.path.join(
+            os.path.dirname(__file__),
+            'templates/differential_expression_prompt_templates.txt'
+        )
+):
     pertqa_dataset_filtered = extract_dataset_from_pertqa(perqa_dataset_name, split)
 
     dataset = {
@@ -81,17 +93,7 @@ def create_differential_expression_dataset_csv_dataset(perqa_dataset_name:str, d
         'gene_monitored': []
     }
 
-    system_prompt_path = os.path.join(
-        os.path.dirname(__file__),
-        'templates/system_prompts/system_prompt_deepseek_adapted.txt'
-    )
-
-    user_prompt_template_path = os.path.join(
-        os.path.dirname(__file__),
-        'templates/differential_expression_prompt_templates.txt'
-    )
-
-    with open(system_prompt_path, 'w') as f:
+    with open(system_prompt_path, 'r') as f:
         system_prompt = f.read()
 
     with open(user_prompt_template_path, 'r') as f:
