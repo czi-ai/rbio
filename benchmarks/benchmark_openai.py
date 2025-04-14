@@ -1,6 +1,5 @@
-from typing import Callable, List
-
 from openai import OpenAI
+from langchain_openai import ChatOpenAI
 import os
 import pandas as pd
 import re
@@ -24,7 +23,15 @@ def extract_answer_if_present(text):
     return None
 
 
-def benchmark_openai(csv_path: os.PathLike, metrics: List[Callable]):
+def benchmark_openai(
+        dataset_path: os.PathLike,
+        llm_model: str,
+        llm_endpoint:str = os.environ['LLM_ENDPOINT_URL'],
+        llm_api_key:str = os.environ['LLM_ENDPOINT_KEY'],
+):
+
+    llm = ChatOpenAI(base_url=llm_endpoint, api_key=llm_api_key, model=llm_model, temperature=0.0)
+
     dataset = pd.read_csv('file_path.csv')
 
     stats = {
@@ -40,15 +47,14 @@ def benchmark_openai(csv_path: os.PathLike, metrics: List[Callable]):
         user_prompt = row['user_prompt']
         label = row['label']
 
-        response = client.chat.completions.create(
-            model="gpt-4.5",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        )
+        messages = [
+           ("system", system_prompt),
+           ("human",  user_prompt)
+        ]
 
-        answer = extract_answer_if_present(response)
+        ai_msg = llm.invoke(messages)
+
+        answer = extract_answer_if_present(ai_msg)
 
         if answer is not None:
             if answer == (label == 1):
@@ -64,7 +70,8 @@ def benchmark_openai(csv_path: os.PathLike, metrics: List[Callable]):
         else:
             stats['unanswered'] += 1
 
-    print(f'STATS HAVE BEEN GENERATED FOR DATASET {csv_path}')
+    print(f'STATS HAVE BEEN GENERATED FOR DATASET {dataset_path}')
     print(stats)
+    print(f'DONE WITH {llm_model}')
 
     return stats
