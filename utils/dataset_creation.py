@@ -61,23 +61,9 @@ def generate_dataset_from_pertqa(dataset_name, logger, num_rows = -1):
 
 
 def build_prompt(user_prompt: str):
-    prompt = ("A conversation between User and Biologist. The user asks a question, "
-              "and the Biologist solves it. The biologist first thinks about the "
-              "reasoning process in the mind and then provides the user with the answer. "
-              "The reasoning process and answer are enclosed within <think> </think> "
-              "and <answer> </answer> tags, respectively, i.e., <think> reasoning "
-              "process here </think> <answer> yes </answer>. The answer is always either "
-              f"'yes' or 'no'. User: {user_prompt}. Biologist:")
+    prompt = ( User: {user_prompt}. Biologist:")
 
     return prompt
-
-
-def prompt_templates(prompt_template_path: os.PathLike):
-    with open(prompt_template_path, 'r') as f:
-        lines = [line.rstrip() for line in f]
-
-    for line in lines:
-        yield line
 
 
 def extract_dataset_from_pertqa(dataset_name:str, split:str):
@@ -92,21 +78,40 @@ def extract_dataset_from_pertqa(dataset_name:str, split:str):
 def create_differential_expression_dataset_csv_dataset(perqa_dataset_name:str, dataset_savepath: os.PathLike, split:str):
     pertqa_dataset_filtered = extract_dataset_from_pertqa(perqa_dataset_name, split)
 
-    dataset = {'prompt': [], 'label': [], 'dataset_name': [], 'gene_perturbed': [], 'gene_monitored': []}
+    dataset = {
+        'system_prompt': [],
+        'user_prompt': [],
+        'label': [],
+        'dataset_name': [],
+        'gene_perturbed': [],
+        'gene_monitored': []
+    }
+
+    system_prompt_path = os.path.join(
+        os.path.dirname(__file__),
+        'templates/system_prompts/system_prompt_deepseek_adapted.txt'
+    )
+
+    user_prompt_template_path = os.path.join(
+        os.path.dirname(__file__),
+        'templates/differential_expression_prompt_templates.txt'
+    )
+
+    with open(system_prompt_path, 'w') as f:
+        system_prompt = f.read()
+
+    with open(user_prompt_template_path, 'r') as f:
+        user_prompt_templates = [line.rstrip() for line in f]
 
     for i in range(len(pertqa_dataset_filtered)):
-        for prompt_template in prompt_templates(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    'templates/differential_expression_prompt_templates.txt'
-                )
-        ):
+        for prompt_template in user_prompt_templates:
             curr_data = pertqa_dataset_filtered.iloc[i]
 
             question = prompt_template.format(curr_data['pert'], curr_data['gene'])
             label = curr_data['label']
 
-            dataset['prompt'].append(build_prompt(question))
+            dataset['system_prompt'].append(system_prompt)
+            dataset['user_prompt'].append(build_prompt(question))
             dataset['label'].append(label)
             dataset['dataset_name'].append(perqa_dataset_name)
             dataset['gene_perturbed'].append(curr_data['pert'])
@@ -114,7 +119,6 @@ def create_differential_expression_dataset_csv_dataset(perqa_dataset_name:str, d
 
     prompt_dataset = pd.DataFrame(dataset)
     prompt_dataset.to_csv(dataset_savepath, index=False)
-
 
 
 def generate_dataset_from_norman_query(task):
