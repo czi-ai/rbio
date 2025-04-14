@@ -60,12 +60,6 @@ def generate_dataset_from_pertqa(dataset_name, logger, num_rows = -1):
     return train_dataset, test_dataset, X_train_keys, X_test_keys
 
 
-def build_prompt(user_prompt: str):
-    prompt = ( User: {user_prompt}. Biologist:")
-
-    return prompt
-
-
 def extract_dataset_from_pertqa(dataset_name:str, split:str):
     pertqa_path = os.environ.get('PERTQA_PATH', perturbqa.__path__[0])
     dataset_csv_path = os.path.join(pertqa_path, 'datasets', dataset_name+'.csv')
@@ -111,7 +105,7 @@ def create_differential_expression_dataset_csv_dataset(perqa_dataset_name:str, d
             label = curr_data['label']
 
             dataset['system_prompt'].append(system_prompt)
-            dataset['user_prompt'].append(build_prompt(question))
+            dataset['user_prompt'].append(question)
             dataset['label'].append(label)
             dataset['dataset_name'].append(perqa_dataset_name)
             dataset['gene_perturbed'].append(curr_data['pert'])
