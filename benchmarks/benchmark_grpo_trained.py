@@ -1,16 +1,9 @@
-from tqdm import tqdm
-from openai import OpenAI
-from langchain_openai import ChatOpenAI
-import os
-import pandas as pd
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.modeling_utils import load_sharded_checkpoint
+import pd
 import re
-import time
-
-# Create client with custom base URL
-client = OpenAI(
-    api_key=os.environ['OPENAI_API_KEY'],
-    base_url="https://czi-virtual-cells-dev-databricks-workspace.cloud.databricks.com/serving-endpoints"
-)
+from tqdm import tqdm
+import os
 
 
 def extract_answer_if_present(text):
@@ -18,26 +11,27 @@ def extract_answer_if_present(text):
     found = re.search(r'<answer>\s*(yes|no)\s*</answer>', text, re.IGNORECASE)
     if found:
         if found.group(1).strip().lower() == 'yes':
-          return True
+            return True
         if found.group(1).strip().lower() == 'no':
-          return False
+            return False
 
     return None
 
 
-def benchmark_openai(
+def benchmark_grpo_trained(
         dataset_path: os.PathLike,
-        llm_model: str,
-        llm_endpoint:str = os.environ['LLM_ENDPOINT_URL'],
-        llm_api_key:str = os.environ['LLM_ENDPOINT_KEY'],
+        model_name: str,
+        model_checkpoint: os.PathLike,
 ):
 
-    llm = ChatOpenAI(
-        base_url=llm_endpoint,
-        api_key=llm_api_key,
-        model=llm_model,
-        temperature=0.0
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        torch_dtype="auto",
+        device_map="auto"
     )
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    load_sharded_checkpoint(model, model_checkpoint, strict=False)
 
     dataset = pd.read_csv(dataset_path)
 
@@ -55,18 +49,29 @@ def benchmark_openai(
         label = row['label']
 
         messages = [
-           ("system", system_prompt),
-           ("human",  user_prompt)
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ]
 
-        while True:
-            try:
-                ai_msg = llm.invoke(messages)
-                break
-            except:
-                time.sleep(5)
+        text = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
 
-        answer = extract_answer_if_present(ai_msg)
+        model_inputs = tokenizer([text], return_tensors="pt").to('cuda')
+
+        generated_ids = model.generate(
+            **model_inputs,
+            max_new_tokens=1024
+        )
+        generated_ids = [
+            output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+        ]
+
+        response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+
+        answer = extract_answer_if_present(response)
 
         bool_label = (label == 1)
 
@@ -84,6 +89,6 @@ def benchmark_openai(
 
     print(f'STATS HAVE BEEN GENERATED FOR DATASET {dataset_path}')
     print(stats)
-    print(f'DONE WITH {llm_model}')
+    print(f'DONE WITH {model_name}::{model_checkpoint}')
 
     return stats
