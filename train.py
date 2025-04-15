@@ -32,7 +32,9 @@ def dataset_gen(dataset, tokenizer):
 
         yield return_data
 
+
 count = 0
+
 
 def reward(completions, label, gene_perturbed, gene_monitored, **kwargs):
     scores = []
@@ -81,7 +83,7 @@ def train(
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    dataset = Dataset.from_generator(dataset_gen(df, tokenizer))
+    dataset = Dataset.from_generator(dataset_gen, gen_kwargs={'dataset': df, 'tokenizer': tokenizer})
 
     if trainer_args is None:
         trainer_args = GRPOConfig(
