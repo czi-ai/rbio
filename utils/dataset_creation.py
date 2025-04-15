@@ -101,10 +101,16 @@ def create_differential_expression_dataset_csv_dataset(
 
     for i in range(len(pertqa_dataset_filtered)):
         for prompt_template in user_prompt_templates:
+            direction, prompt_template = prompt_template.split(':')
+
             curr_data = pertqa_dataset_filtered.iloc[i]
 
             question = prompt_template.format(curr_data['pert'], curr_data['gene'])
-            label = curr_data['label']
+
+            if direction == 'D':
+                label = curr_data['label']
+            elif direction == 'R':
+                label = 1 - curr_data['label']
 
             dataset['system_prompt'].append(system_prompt)
             dataset['user_prompt'].append(question)
