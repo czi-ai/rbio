@@ -32,9 +32,7 @@ def dataset_gen(dataset, tokenizer):
 
         yield return_data
 
-
 count = 0
-
 
 def reward(completions, label, gene_perturbed, gene_monitored, **kwargs):
     scores = []
