@@ -32,9 +32,20 @@ def dataset_gen(dataset, tokenizer):
 
         yield return_data
 
+count = 0
 
 def reward(completions, label, gene_perturbed, gene_monitored, **kwargs):
     scores = []
+
+    global count
+    if count % 10 == 0:
+        for completion, lbl, gp, gm in zip(completions, label, gene_perturbed, gene_monitored):
+            print(f'completion: {completion}')
+            print(f'label: {(lbl == 1)}')
+            print(f'gene perturbed: {gp}')
+            print(f'gene monitored: {gm}')
+
+    count += 1
 
     for completion, lbl, gp, gm in zip(completions, label, gene_perturbed, gene_monitored):
         format_reward = composite_formatting_reward(completion)
@@ -73,7 +84,7 @@ def train(
     dataset = Dataset.from_generator(dataset_gen(df, tokenizer))
 
     if trainer_args is None:
-        training_args = GRPOConfig(
+        trainer_args = GRPOConfig(
             output_dir=str(output_dir),
             logging_steps=10,
             per_device_train_batch_size=per_device_train_batch_size,
