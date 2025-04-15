@@ -4,6 +4,7 @@ from langchain_openai import ChatOpenAI
 import os
 import pandas as pd
 import re
+import time
 
 # Create client with custom base URL
 client = OpenAI(
@@ -58,21 +59,26 @@ def benchmark_openai(
            ("human",  user_prompt)
         ]
 
-        ai_msg = llm.invoke(messages)
+        while True:
+            try:
+                ai_msg = llm.invoke(messages)
+                break
+            except:
+                time.sleep(5)
 
         answer = extract_answer_if_present(ai_msg)
 
+        bool_label = (label == 1)
+
         if answer is not None:
-            if answer == (label == 1):
-                if answer:
-                    stats['tp'] += 1
-                else:
-                    stats['tn'] += 1
-            else:
-                if not answer and (label == 1):
-                    stats['fn'] += 1
-                else:
-                    stats['fp'] += 1
+            if answer == True and bool_label == True:
+                stats['tp'] += 1
+            elif answer == True and bool_label == False:
+                stats['fp'] += 1
+            elif answer == False and bool_label == False:
+                stats['tn'] += 1
+            elif answer == False and bool_label == True:
+                stats['fn'] += 1
         else:
             stats['unanswered'] += 1
 
