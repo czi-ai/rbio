@@ -1,12 +1,22 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.modeling_utils import load_sharded_checkpoint
-from ..utils.utils import extract_answer
-import pd
 from tqdm import tqdm
+import pandas as pd
 import os
+import click
+import re
+
+def extract_answer(text):
+    found = re.search(r'<answer>\s*(yes|no)\s*</answer>', text, re.IGNORECASE)
+    if found:
+        if found.group(1).strip().lower() == 'yes':
+            return True
+        if found.group(1).strip().lower() == 'no':
+            return False
+
+    return None
 
 
-def benchmark_grpo_trained(
+def benchmark_pretrained(
         dataset_path: os.PathLike,
         model_name: str,
 ):
@@ -77,3 +87,15 @@ def benchmark_grpo_trained(
     print(f'DONE WITH {model_name}')
 
     return stats
+
+
+
+@click.command()
+@click.option('--dataset-path', help='Dataset CSV file path', required=True)
+@click.option('--model-name', help='Huggingface model name', required=True)
+def benchmark(dataset_path: os.PathLike, model_name: str):
+    benchmark_pretrained(dataset_path=dataset_path, model_name=model_name)
+
+
+if __name__ == '__main__':
+    benchmark()
