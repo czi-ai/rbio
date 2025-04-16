@@ -18,12 +18,6 @@ def extract_answer(text):
 
     return None
 
-# Create client with custom base URL
-client = OpenAI(
-    api_key=os.environ['OPENAI_API_KEY'],
-    base_url="https://czi-virtual-cells-dev-databricks-workspace.cloud.databricks.com/serving-endpoints"
-)
-
 
 def benchmark_commercial_llm(
         dataset_path: os.PathLike,
