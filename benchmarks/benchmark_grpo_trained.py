@@ -1,21 +1,9 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.modeling_utils import load_sharded_checkpoint
+from ..utils.utils import extract_answer
 import pd
-import re
 from tqdm import tqdm
 import os
-
-
-def extract_answer_if_present(text):
-    # this code is duplicated on purpose
-    found = re.search(r'<answer>\s*(yes|no)\s*</answer>', text, re.IGNORECASE)
-    if found:
-        if found.group(1).strip().lower() == 'yes':
-            return True
-        if found.group(1).strip().lower() == 'no':
-            return False
-
-    return None
 
 
 def benchmark_grpo_trained(
@@ -71,7 +59,7 @@ def benchmark_grpo_trained(
 
         response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
-        answer = extract_answer_if_present(response)
+        answer = extract_answer(response)
 
         bool_label = (label == 1)
 
