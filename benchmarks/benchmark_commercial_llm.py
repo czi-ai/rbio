@@ -1,16 +1,9 @@
 from tqdm import tqdm
-from openai import OpenAI
 from langchain_openai import ChatOpenAI
 import os
 import pandas as pd
 import re
 import time
-
-# Create client with custom base URL
-client = OpenAI(
-    api_key=os.environ['OPENAI_API_KEY'],
-    base_url="https://czi-virtual-cells-dev-databricks-workspace.cloud.databricks.com/serving-endpoints"
-)
 
 
 def extract_answer_if_present(text):
