@@ -82,6 +82,9 @@ def benchmark_pretrained(
         else:
             stats['unanswered'] += 1
 
+        if int(index) % 100 == 0:
+            print(f'Partial results @ {index}: {stats}')
+
     print(f'STATS HAVE BEEN GENERATED FOR DATASET {dataset_path}')
     print(stats)
     print(f'DONE WITH {model_name}')
