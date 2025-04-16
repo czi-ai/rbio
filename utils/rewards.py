@@ -71,80 +71,121 @@ def perturb_reward_func(prompts, completions, task, **kwargs):
     return rewards
 
 
-def reward_len(completions, **kwargs):
-    """
-    Simple reward function. Checks a number of completions and assigns rewards if the completions are > 20 characters
-    
-    Args:
-        completions: model completions to the prompts
-    Returns:
-        rewards: list of rewards accumulated by checking the prompts
-    """
-    rewards = [-abs(20 - len(completion)) for completion in completions]
-    return rewards
+def has_at_least_one_think(text):
+    return 1 if re.search(r'<think>.*?</think>', text, re.DOTALL) else 0
 
 
-def is_tag_usage_valid(text: str, tag: str):
-    # this checks that if a tag is opened, it is also closed Eg. <think></think>
-    # and that tags are never nested
-    pattern = fr'</?{tag}>'
-    tags = list(re.finditer(pattern, text))
-    stack = []
-    for t in tags:
-        if t.group() == f'<{tag}>':
-            if stack:
-                return 0  # nested tag
-            stack.append(t.start())
-        else:  # closing tag
-            if not stack:
-                return 0  # unmatched closing tag
-            stack.pop()
-    return 1 if not stack else 0
+def low_untagged_ratio(text):
+    text_no_tags = re.sub(r'</?(think|answer)>', '', text)
+    total_words = len(re.findall(r'\b\w+\b', text_no_tags))
+
+    tagged_words = 0
+    for tag in re.findall(r'<(think|answer)>(.*?)</\1>', text, re.DOTALL):
+        tagged_words += len(re.findall(r'\b\w+\b', tag[1]))
+    ratio = tagged_words / total_words if total_words else 0
+
+    return ratio
 
 
-def has_tag(text: str, tag: str):
-    # this checks that tags are present
-    pattern = fr'<{tag}>.*?</{tag}>'
-    return 1 if re.search(pattern, text, re.DOTALL) else 0
+def starts_with_think(text):
+    return 1 if re.match(r'^\s*<think>', text) else 0
 
 
-def is_single_valid_answer(text: str):
-    pattern = r'</?answer>'
-    tags = list(re.finditer(pattern, text))
-
-    if len(tags) != 2:
-        return 0  # must have exactly one opening and one closing tag
-
-    # Ensure correct order and no nesting
-    return 1 if tags[0].group() == '<answer>' and tags[1].group() == '</answer>' else 0
+def is_not_too_long(text):
+    word_count = len(re.findall(r'\b\w+\b', text))
+    return 1 if word_count <= 200 else 200 / word_count
 
 
-def formatting_reward(completions: list, **kwargs):
-    rewards = []
-    for completion in completions:
-        reward = (is_tag_usage_valid(completion, 'think') +
-                  is_tag_usage_valid(completion, 'answer') +
-                  has_tag(completion, 'think') +
-                  has_tag(completion, 'answer') +
-                  is_single_valid_answer(completion)
-                  ) / 5.0
-
-        rewards.append(reward)
-
-    return rewards
+def has_one_answer(text):
+    matches = re.findall(r'<answer>.*?</answer>', text, re.DOTALL)
+    return 1 if len(matches) == 1 else 0
 
 
-def is_answer_yes(text: str):
-    # this checks if the answer is positive
-    match = re.search(r'<answer>\s*(yes|no)\s*</answer>', text, re.IGNORECASE)
-    if match:
-        return match.group(1).strip().lower() == 'yes'
-    return False
+def answer_after_thinks(text):
+    think_tags = list(re.finditer(r'</think>', text))
+    answer_match = re.search(r'<answer>', text)
+    if not answer_match:
+        return 0
+    if not think_tags:
+        return 0
+    last_think_end = think_tags[-1].end()
+    return 1 if answer_match.start() > last_think_end else 0
 
 
-def correctness_reward(completions, labels):
-    rewards = []
-    for completion, label in zip(completions, labels):
-        rewards.append(float(is_answer_yes(completion) == bool(label)))
+def thinks_have_text(text):
+    return 1 if all(re.search(r'\S', match) for match in re.findall(r'<think>(.*?)</think>', text, re.DOTALL)) else 0
 
-    return rewards
+
+def genes_mentioned_in_think(text, gene_perturbed, gene_monitored):
+    think_contents = re.findall(r'<think>(.*?)</think>', text, re.DOTALL | re.IGNORECASE)
+
+    for content in think_contents:
+        score = int(gene_perturbed in content) + int(gene_monitored in content)
+        if score > 0:
+            return score / 2.0  # 0.5 or 1.0
+    return 0.0
+
+
+def no_nested_tags(text):
+    # Match all <think>...</think> and <answer>...</answer> blocks
+    blocks = re.finditer(r'<(think|answer)>(.*?)</\1>', text, re.DOTALL)
+
+    for block in blocks:
+        tag_type = block.group(1)
+        inner_text = block.group(2)
+        # Look for any nested <think> or <answer> inside the block
+        if re.search(r'</?(think|answer)>', inner_text, re.DOTALL):
+            return 0
+    return 1
+
+
+def all_tags_properly_closed(text):
+    tag_stack = []
+    tag_pattern = re.finditer(r'</?(think|answer)>', text)
+
+    for tag in tag_pattern:
+        tag_text = tag.group()
+        tag_type = re.match(r'</?(think|answer)>', tag_text).group(1)
+
+        if tag_text.startswith('</'):
+            # closing tag
+            if not tag_stack or tag_stack[-1] != tag_type:
+                return 0  # orphan or mismatched closing tag
+            tag_stack.pop()
+        else:
+            # opening tag
+            tag_stack.append(tag_type)
+
+    return 1 if not tag_stack else 0  # stack must be empty if all matched
+
+
+def has_limited_thinks(text):
+    matches = re.findall(r'<think>.*?</think>', text, re.DOTALL)
+    return 1 if len(matches) <= 1 else 1 / (len(matches) * 4)
+
+
+def ends_with_answer(text):
+    return 1 if text.endswith('</answer>') else 0
+
+
+def has_any_tag(text):
+    return 1 if re.search(r'</?(think|answer)>', text) else 0
+
+
+def composite_formatting_reward(text):
+    at_least_one_think = has_at_least_one_think(text)
+    has_tags = has_any_tag(text)
+    checks = [
+        at_least_one_think,
+        low_untagged_ratio(text),
+        is_not_too_long(text),
+        has_one_answer(text),
+        answer_after_thinks(text),
+        thinks_have_text(text) * at_least_one_think,
+        no_nested_tags(text) * has_tags,
+        has_limited_thinks(text) * at_least_one_think,
+        starts_with_think(text),
+        all_tags_properly_closed(text) * has_tags,
+        ends_with_answer(text)
+    ]
+    return sum(checks) / len(checks)  # normalized score from 0 to 1
