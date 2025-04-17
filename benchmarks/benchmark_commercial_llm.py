@@ -1,5 +1,4 @@
 from tqdm import tqdm
-from openai import OpenAI
 from langchain_openai import ChatOpenAI
 import os
 import pandas as pd
