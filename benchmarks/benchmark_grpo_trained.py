@@ -1,13 +1,12 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.modeling_utils import load_sharded_checkpoint
-import pd
-import re
+import pandas as pd
 from tqdm import tqdm
 import os
+import re
+import click
 
-
-def extract_answer_if_present(text):
-    # this code is duplicated on purpose
+def extract_answer(text):
     found = re.search(r'<answer>\s*(yes|no)\s*</answer>', text, re.IGNORECASE)
     if found:
         if found.group(1).strip().lower() == 'yes':
@@ -71,7 +70,7 @@ def benchmark_grpo_trained(
 
         response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
-        answer = extract_answer_if_present(response)
+        answer = extract_answer(response)
 
         bool_label = (label == 1)
 
@@ -87,8 +86,23 @@ def benchmark_grpo_trained(
         else:
             stats['unanswered'] += 1
 
+        if int(index) % 100 == 0:
+            print(f'Partial results @ {index}: {stats}')
+
     print(f'STATS HAVE BEEN GENERATED FOR DATASET {dataset_path}')
     print(stats)
     print(f'DONE WITH {model_name}::{model_checkpoint}')
 
     return stats
+
+
+@click.command()
+@click.option('--dataset-path', help='Dataset CSV file path', required=True)
+@click.option('--model-name', help='Huggingface model name', required=True)
+@click.option('--grpo-checkpoint', help='Path of trained model checkpoint', required=True)
+def benchmark(dataset_path: os.PathLike, model_name: str, grpo_checkpoint: os.PathLike):
+    benchmark_grpo_trained(dataset_path=dataset_path, model_name=model_name, model_checkpoint=grpo_checkpoint)
+
+
+if __name__ == '__main__':
+    benchmark()

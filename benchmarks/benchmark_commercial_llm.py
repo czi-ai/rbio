@@ -2,18 +2,18 @@ from tqdm import tqdm
 from langchain_openai import ChatOpenAI
 import os
 import pandas as pd
-import re
 import time
+import re
+import click
 
 
-def extract_answer_if_present(text):
-    # this code is duplicated on purpose
+def extract_answer(text):
     found = re.search(r'<answer>\s*(yes|no)\s*</answer>', text, re.IGNORECASE)
     if found:
         if found.group(1).strip().lower() == 'yes':
-          return True
+            return True
         if found.group(1).strip().lower() == 'no':
-          return False
+            return False
 
     return None
 
@@ -59,7 +59,7 @@ def benchmark_commercial_llm(
             except:
                 time.sleep(5)
 
-        answer = extract_answer_if_present(ai_msg)
+        answer = extract_answer(ai_msg)
 
         bool_label = (label == 1)
 
@@ -75,8 +75,29 @@ def benchmark_commercial_llm(
         else:
             stats['unanswered'] += 1
 
+        if int(index) % 100 == 0:
+            print(f'Partial results @ {index}: {stats}')
+
     print(f'STATS HAVE BEEN GENERATED FOR DATASET {dataset_path}')
     print(stats)
     print(f'DONE WITH {llm_model}')
 
     return stats
+
+
+@click.command()
+@click.option('--dataset-path', help='Dataset CSV file path', required=True)
+@click.option('--llm-model', help='The name of the LLM model', required=True)
+@click.option('--llm-endpoint', help='URL of commercial model endpoint', required=True)
+@click.option('--llm-api-key', help='The API key to access the LLM via the endpoint', required=True)
+def benchmark(dataset_path: os.PathLike, llm_model: str, llm_endpoint: str, llm_api_key: str):
+    benchmark_commercial_llm(
+        dataset_path=dataset_path,
+        llm_model=llm_model,
+        llm_endpoint=llm_endpoint,
+        llm_api_key=llm_api_key
+    )
+
+
+if __name__ == '__main__':
+    benchmark()

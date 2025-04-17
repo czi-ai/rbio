@@ -1,4 +1,5 @@
 import os
+import click
 
 import pandas as pd
 from datasets import Dataset
@@ -68,7 +69,7 @@ def reward(completions, label, gene_perturbed, gene_monitored, **kwargs):
     return scores
 
 
-def train(
+def train_fn(
         dataset_path: os.PathLike,
         model_name: str,
         output_dir: os.PathLike,
@@ -101,3 +102,32 @@ def train(
     )
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+
+
+@click.command()
+@click.option('--dataset-path', help='Dataset CSV file path', required=True)
+@click.option('--model-name', help='The name of the LLM model in huggingface', required=True)
+@click.option('--checkpoint-dir', help='Directory where we save our checkpoints', required=True)
+@click.option('--resume', help='Whether to resume from one of the checkpoints or not', default=False)
+@click.option('--batch-size', help='Batch-size', default=4)
+@click.option('--n-generations', help='Number of generations for GRPO', default=4)
+def train(
+        dataset_path: os.PathLike,
+        model_name: str,
+        checkpoint_dir: os.PathLike,
+        resume: bool,
+        batch_size: int,
+        n_generations: int
+):
+    train_fn(
+        dataset_path=dataset_path,
+        model_name=model_name,
+        output_dir=checkpoint_dir,
+        resume_from_checkpoint=resume,
+        per_device_train_batch_size=batch_size,
+        num_generations=n_generations,
+    )
+
+
+if __name__ == '__main__':
+    train()
