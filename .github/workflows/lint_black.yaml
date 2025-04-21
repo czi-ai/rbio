@@ -2,7 +2,7 @@ name: Lint with Black
 run-name: ${{ github.actor }} linting code in ${{ github.repository }}/${{ github.ref }}
 on: [push]
 jobs:
-  Explore-GitHub-Actions:
+  Black-linter:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
