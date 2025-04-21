@@ -9,6 +9,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Lint
         run: |
-          pip install -e ${{ github.workspace }}/rbio
-          black ${{ github.workspace }}/rbio --check
+          pip install -e ${{ github.workspace }}
+          black ${{ github.workspace }} --check
       - run: echo "Linting has exited with status ${{ job.status }}."
