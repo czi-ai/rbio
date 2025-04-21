@@ -200,9 +200,25 @@ def generate_dataset_from_norman_query(task):
     help="The name of the split",
 )
 @click.option(
-    "--system-prompt-path", help="The path of the system prompt template", default=4
+    "--system-prompt-path",
+    help="The path of the system prompt template",
+    default=pathlib.Path(
+        os.path.join(
+            os.path.dirname(__file__),
+            "templates/system_prompts/system_prompt_deepseek_adapted.txt",
+        )
+    ),
 )
-@click.option("--n-generations", help="Number of generations for GRPO", default=4)
+@click.option(
+    "--user-prompt-path",
+    help="The path of the user prompt template",
+    default=pathlib.Path(
+        os.path.join(
+            os.path.dirname(__file__),
+            "templates/differential_expression_prompt_templates.txt",
+        )
+    ),
+)
 def create_dataset(
     dataset_type: str,
     perqa_dataset_name: str,
@@ -213,22 +229,6 @@ def create_dataset(
     user_prompt_path: os.PathLike,
 ):
     if dataset_type == "differential_expression" or "de":
-        if system_prompt_path is None:
-            system_prompt_path: os.PathLike = pathlib.Path(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "templates/system_prompts/system_prompt_deepseek_adapted.txt",
-                )
-            )
-
-        if user_prompt_path is None:
-            user_prompt_path: os.PathLike = pathlib.Path(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "templates/differential_expression_prompt_templates.txt",
-                )
-            )
-
         create_differential_expression_dataset_csv_dataset(
             perqa_dataset_name,
             cell_line,
