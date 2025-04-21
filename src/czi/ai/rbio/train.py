@@ -1,9 +1,11 @@
 import os
 import click
+import randomname
 
 import pandas as pd
 from datasets import Dataset
 from transformers import AutoTokenizer
+from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
 from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
@@ -84,6 +86,12 @@ def train_fn(
     per_device_train_batch_size: int = 4,
     num_generations: int = 4,
 ):
+    os.environ["MLFLOW_TRACKING_URI"] = (
+        "http://mlflow-api.mlflow.svc.cluster.local:5000"
+    )
+    os.environ["MLFLOW_EXPERIMENT_NAME"] = "rbio"
+    os.environ["MLFLOW_RUN_ID"] = randomname.get_name()
+
     df = pd.read_csv(dataset_path)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -107,6 +115,7 @@ def train_fn(
         reward_funcs=reward,
         args=trainer_args,
         train_dataset=dataset,
+        callbacks=[MLflowCallback()],
     )
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
