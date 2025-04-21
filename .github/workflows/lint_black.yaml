@@ -1,6 +1,6 @@
 name: Lint with Black
 run-name: ${{ github.actor }} linting code in ${{ github.repository }}/${{ github.ref }}
-on: [push, pull_request]
+on: [push]
 jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
