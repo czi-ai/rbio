@@ -1,14 +1,14 @@
-D: Does a perturbation of gene {0} result in changes in gene {1}?
-D: If I knock out gene {0} does the expression of gene {1} change?
-D: Does perturbing gene {0} lead to a measurable change in gene {1} expression?
-R: Is gene {1} unaffected when gene {0} is knocked out?
-D: Does silencing gene {0} cause upregulation or downregulation of gene {1}?
-R: Is gene {1} expression stable despite perturbation of gene {0}?
-D: Can knocking out gene {0} significantly alter the transcription of gene {1}?
-R: Is the expression of gene {1} independent of gene {0} perturbation?
-D: Does gene {1} respond to the loss of gene {0} function?
-R: Is gene {1} expression unresponsive to interference with gene {0}?
-D: Does gene {0} control gene {1} expression under perturbation conditions?
-R: Is gene {1} expression unchanged when gene {0} is modified?
-R: Is gene {1} expression completely unaffected by perturbation of gene {0}?
-R: Does gene {1} maintain baseline expression levels after gene {0} is disrupted?
+D: Does a perturbation of gene {0} in cell line {1} result in changes in gene {2}?
+D: If I knock out gene {0} in cell line {1} does the expression of gene {2} change?
+D: Does perturbing gene {0} in cell line {1} lead to a measurable change in gene {2} expression?
+R: Is gene {2} unaffected when gene {0} is knocked out in cell line {1}?
+D: Does silencing gene {0} in cell line {1} cause upregulation or downregulation of gene {2}?
+R: Is gene {2} expression stable despite perturbation of gene {0} in cell line {1}?
+D: Can knocking out gene {0} in cell line {1} significantly alter the transcription of gene {2}?
+R: Is the expression of gene {2} independent of gene {0} perturbation in cell line {1}?
+D: Does gene {2} respond to the loss of gene {0} function in cell line {1}?
+R: Is gene {2} expression unresponsive to interference with gene {0} in cell line {1}?
+D: Does gene {0} control gene {2} expression under perturbation conditions in cell line {1}?
+R: Is gene {2} expression unchanged when gene {0} is modified in cell line {1}?
+R: Is gene {2} expression completely unaffected by perturbation of gene {0} in cell line {1}?
+R: Does gene {2} maintain baseline expression levels after gene {0} is disrupted in cell line {1}?

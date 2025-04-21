@@ -1,1 +1,1 @@
-D: Does a perturbation of gene {0} result in changes in gene {1}?
+D: Does a perturbation of gene {0} in cell line {1} result in changes in gene {2}?
