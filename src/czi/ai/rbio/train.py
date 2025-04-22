@@ -102,7 +102,8 @@ def train_fn(
     if trainer_args is None:
         trainer_args = GRPOConfig(
             output_dir=str(output_dir),
-            logging_steps=1000,
+            logging_steps=250,
+            logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
         )
