@@ -1,5 +1,6 @@
 import os
 import click
+import random
 
 import pandas as pd
 from datasets import Dataset
@@ -13,9 +14,27 @@ from czi.ai.rbio.model.rewards import (
 from czi.ai.rbio.utils.utils import extract_answer
 
 
-def dataset_gen(dataset, tokenizer):
-    for i in range(dataset.shape[0]):
-        dataset_row = dataset.iloc[i]
+def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
+    dataset_len = dataset.shape[0]
+    df_true = dataset
+    df_false = dataset
+
+    if balance_pos_neg:
+        df_true = dataset[dataset.label == 1]
+        df_false = dataset[dataset.label == 0]
+
+        dataset_len = max([len(df_true), len(df_false)]) * 2
+
+    for i in range(dataset_len):
+        if balance_pos_neg:
+            if random.random() > 0.5:
+                j = random.randint(0, df_true.shape[0] - 1)
+                dataset_row = df_true.iloc[j]
+            else:
+                j = random.randint(0, df_false.shape[0] - 1)
+                dataset_row = df_false.iloc[j]
+        else:
+            dataset_row = dataset.iloc[i]
 
         messages = [
             {"role": "system", "content": dataset_row["system_prompt"]},
