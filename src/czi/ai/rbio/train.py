@@ -69,7 +69,7 @@ def reward(completions, label, gene_perturbed, gene_monitored, **kwargs):
         else:
             answer_reward = 0
 
-        total_score = format_reward + answer_reward + mention_reward
+        total_score = format_reward + 2.0 * answer_reward + mention_reward
 
         scores.append(total_score)
 
@@ -102,7 +102,7 @@ def train_fn(
     if trainer_args is None:
         trainer_args = GRPOConfig(
             output_dir=str(output_dir),
-            logging_steps=10,
+            logging_steps=1000,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
         )
