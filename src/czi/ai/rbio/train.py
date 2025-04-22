@@ -1,6 +1,5 @@
 import os
 import click
-import randomname
 
 import pandas as pd
 from datasets import Dataset
@@ -86,11 +85,11 @@ def train_fn(
     per_device_train_batch_size: int = 4,
     num_generations: int = 4,
 ):
+    os.environ["HF_MLFLOW_LOG_ARTIFACTS"] = "false"
     os.environ["MLFLOW_TRACKING_URI"] = (
         "http://mlflow-api.mlflow.svc.cluster.local:5000"
     )
     os.environ["MLFLOW_EXPERIMENT_NAME"] = "rbio"
-    os.environ["MLFLOW_RUN_ID"] = randomname.get_name()
 
     df = pd.read_csv(dataset_path)
 
