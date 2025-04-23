@@ -4,7 +4,7 @@ import random
 
 import pandas as pd
 from datasets import Dataset
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel
 from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
 from czi.ai.rbio.model.rewards import (
@@ -54,45 +54,68 @@ def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
         yield return_data
 
 
-count = 0
+class Reward:
+    def __init__(self, model: AutoModel, tokenizer: AutoTokenizer):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.count = 0
 
-
-def reward(completions, label, gene_perturbed, gene_monitored, **kwargs):
-    scores = []
-
-    global count
-    if count % 10 == 0:
-        for completion, lbl, gp, gm in zip(
-            completions, label, gene_perturbed, gene_monitored
-        ):
-            print(f"completion: {completion}")
-            print(f"label: {(lbl == 1)}")
-            print(f"gene perturbed: {gp}")
-            print(f"gene monitored: {gm}")
-
-    count += 1
-
-    for completion, lbl, gp, gm in zip(
-        completions, label, gene_perturbed, gene_monitored
+    def compute_reward(
+        self,
+        completions: list,
+        label: list,
+        gene_perturbed: list,
+        gene_monitored: list,
+        system_prompt: list,
+        user_promot: list,
+        **kwargs,
     ):
-        format_reward = composite_formatting_reward(completion)
+        scores = []
 
-        answer_from_text = extract_answer(completion)
+        if self.count % 10 == 0:
+            for completion, lbl, gp, gm, sys_p, usr_p in zip(
+                completions,
+                label,
+                gene_perturbed,
+                gene_monitored,
+                system_prompt,
+                user_promot,
+            ):
+                print(f"system prompt: {sys_p}")
+                print(f"user prompt: {usr_p}")
+                print(f"completion: {completion}")
+                print(f"label: {(lbl == 1)}")
+                print(f"gene perturbed: {gp}")
+                print(f"gene monitored: {gm}")
 
-        mention_reward = genes_mentioned_in_think(completion, gp, gm)
+        self.count += 1
 
-        bool_label = lbl == 1
+        for completion, lbl, gp, gm, sys_p, usr_p in zip(
+            completions,
+            label,
+            gene_perturbed,
+            gene_monitored,
+            system_prompt,
+            user_promot,
+        ):
+            format_reward = composite_formatting_reward(completion)
 
-        if answer_from_text is not None:
-            answer_reward = float(answer_from_text == bool_label)
-        else:
-            answer_reward = 0
+            answer_from_text = extract_answer(completion)
 
-        total_score = format_reward + 2.0 * answer_reward + mention_reward
+            mention_reward = genes_mentioned_in_think(completion, gp, gm)
 
-        scores.append(total_score)
+            bool_label = lbl == 1
 
-    return scores
+            if answer_from_text is not None:
+                answer_reward = float(answer_from_text == bool_label)
+            else:
+                answer_reward = 0
+
+            total_score = format_reward + 2.0 * answer_reward + mention_reward
+
+            scores.append(total_score)
+
+        return scores
 
 
 def train_fn(
@@ -113,6 +136,7 @@ def train_fn(
     df = pd.read_csv(dataset_path)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModel.from_pretrained(model_name)
 
     dataset = Dataset.from_generator(
         dataset_gen, gen_kwargs={"dataset": df, "tokenizer": tokenizer}
@@ -129,9 +153,11 @@ def train_fn(
 
     trainer_args.output_dir = str(output_dir)
 
+    reward = Reward(model, tokenizer)
+
     trainer = GRPOTrainer(
-        model=model_name,
-        reward_funcs=reward,
+        model=model,
+        reward_funcs=reward.compute_reward,
         args=trainer_args,
         train_dataset=dataset,
         callbacks=[MLflowCallback()],
