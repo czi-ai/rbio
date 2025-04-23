@@ -11,8 +11,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
 
-from czi.ai.rbio.model.rewards import (composite_formatting_reward,
-                                       genes_mentioned_in_think)
+from czi.ai.rbio.model.rewards import (
+    composite_formatting_reward,
+    genes_mentioned_in_think,
+)
 from czi.ai.rbio.utils.utils import extract_answer
 
 
