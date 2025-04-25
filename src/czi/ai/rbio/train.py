@@ -1,9 +1,11 @@
 import os
 import click
+import random
 
 import pandas as pd
 from datasets import Dataset
 from transformers import AutoTokenizer
+from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
 from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
@@ -12,9 +14,27 @@ from czi.ai.rbio.model.rewards import (
 from czi.ai.rbio.utils.utils import extract_answer
 
 
-def dataset_gen(dataset, tokenizer):
-    for i in range(dataset.shape[0]):
-        dataset_row = dataset.iloc[i]
+def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
+    dataset_len = dataset.shape[0]
+    df_true = dataset
+    df_false = dataset
+
+    if balance_pos_neg:
+        df_true = dataset[dataset.label == 1]
+        df_false = dataset[dataset.label == 0]
+
+        dataset_len = max([len(df_true), len(df_false)]) * 2
+
+    for i in range(dataset_len):
+        if balance_pos_neg:
+            if random.random() > 0.5:
+                j = random.randint(0, df_true.shape[0] - 1)
+                dataset_row = df_true.iloc[j]
+            else:
+                j = random.randint(0, df_false.shape[0] - 1)
+                dataset_row = df_false.iloc[j]
+        else:
+            dataset_row = dataset.iloc[i]
 
         messages = [
             {"role": "system", "content": dataset_row["system_prompt"]},
@@ -68,7 +88,7 @@ def reward(completions, label, gene_perturbed, gene_monitored, **kwargs):
         else:
             answer_reward = 0
 
-        total_score = format_reward + answer_reward + mention_reward
+        total_score = format_reward + 2.0 * answer_reward + mention_reward
 
         scores.append(total_score)
 
@@ -84,6 +104,12 @@ def train_fn(
     per_device_train_batch_size: int = 4,
     num_generations: int = 4,
 ):
+    os.environ["HF_MLFLOW_LOG_ARTIFACTS"] = "false"
+    os.environ["MLFLOW_TRACKING_URI"] = (
+        "http://mlflow-api.mlflow.svc.cluster.local:5000"
+    )
+    os.environ["MLFLOW_EXPERIMENT_NAME"] = "rbio"
+
     df = pd.read_csv(dataset_path)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -95,7 +121,8 @@ def train_fn(
     if trainer_args is None:
         trainer_args = GRPOConfig(
             output_dir=str(output_dir),
-            logging_steps=10,
+            logging_steps=250,
+            logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
         )
@@ -107,6 +134,7 @@ def train_fn(
         reward_funcs=reward,
         args=trainer_args,
         train_dataset=dataset,
+        callbacks=[MLflowCallback()],
     )
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
