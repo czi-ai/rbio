@@ -1,0 +1,27 @@
+[project]
+name = "czi-ai-rbio"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Fausto Milletari",email = "fmilletari@chanzuckerberg.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "torch (>=2.6.0,<3.0.0)",
+    "transformers (>=4.51.3,<5.0.0)",
+    "datasets (>=3.5.0,<4.0.0)",
+    "trl (>=0.16.1,<0.17.0)",
+    "click (>=8.1.8,<9.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "black (>=25.1.0,<26.0.0)"
+
+]
+
+[tool.poetry]
+packages = [{include = "czi", from = "src"}]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
