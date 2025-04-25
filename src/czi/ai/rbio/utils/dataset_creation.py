@@ -1,8 +1,11 @@
+import pathlib
+
 import perturbqa
 import os
 import pandas as pd
 from perturbqa import load_de, load_dir, auc_per_gene
 from datasets import Dataset, load_dataset
+import click
 
 
 def generate_prompt_column(
@@ -82,6 +85,7 @@ def extract_dataset_from_pertqa(dataset_name: str, split: str):
 
 def create_differential_expression_dataset_csv_dataset(
     perqa_dataset_name: str,
+    cell_line: str,
     dataset_savepath: os.PathLike,
     split: str,
     system_prompt_path: os.PathLike = os.path.join(
@@ -116,7 +120,9 @@ def create_differential_expression_dataset_csv_dataset(
 
             curr_data = pertqa_dataset_filtered.iloc[i]
 
-            question = prompt_template.format(curr_data["pert"], curr_data["gene"])
+            question = prompt_template.format(
+                curr_data["pert"], cell_line, curr_data["gene"]
+            )
 
             if direction == "D":
                 label = curr_data["label"]
@@ -178,3 +184,62 @@ def generate_dataset_from_norman_query(task):
         test_dataset = Dataset.from_list(prompts)
 
     return test_dataset
+
+
+@click.command()
+@click.argument("dataset_type")
+@click.option("--perqa-dataset-name", help="PertQA dataset name", required=True)
+@click.option(
+    "--cell-line", help="The name of the cell line to build prompt", required=True
+)
+@click.option(
+    "--dataset-savepath", help="Directory where we save our dataset", required=True
+)
+@click.option(
+    "--split",
+    help="The name of the split",
+)
+@click.option(
+    "--system-prompt-path",
+    help="The path of the system prompt template",
+    default=pathlib.Path(
+        os.path.join(
+            os.path.dirname(__file__),
+            "templates/system_prompts/system_prompt_deepseek_adapted.txt",
+        )
+    ),
+)
+@click.option(
+    "--user-prompt-path",
+    help="The path of the user prompt template",
+    default=pathlib.Path(
+        os.path.join(
+            os.path.dirname(__file__),
+            "templates/differential_expression_prompt_templates.txt",
+        )
+    ),
+)
+def create_dataset(
+    dataset_type: str,
+    perqa_dataset_name: str,
+    cell_line: str,
+    dataset_savepath: os.PathLike,
+    split: str,
+    system_prompt_path: os.PathLike,
+    user_prompt_path: os.PathLike,
+):
+    if dataset_type == "differential_expression" or "de":
+        create_differential_expression_dataset_csv_dataset(
+            perqa_dataset_name,
+            cell_line,
+            dataset_savepath,
+            split,
+            system_prompt_path,
+            user_prompt_path,
+        )
+    else:
+        raise NotImplementedError(f"dataset_type {dataset_type} not implemented")
+
+
+if __name__ == "__main__":
+    create_dataset()
