@@ -1,6 +1,6 @@
 [project]
 name = "czi-ai-rbio"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = [
     {name = "Fausto Milletari",email = "fmilletari@chanzuckerberg.com"}
