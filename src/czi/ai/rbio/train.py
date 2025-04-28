@@ -105,17 +105,10 @@ def compute_reasoning_advantage(
             output_logits=True,
         )
 
-        # len_prompt = len(inputs['input_ids'][0])
-        # generated = tokenizer.decode(outputs.sequences[0][len_prompt:])
-
         scores = []
         for token_id in token_ids:
-            score = outputs.scores[0][0][token_id]
 
             probability = softmax(outputs.logits[0][0])[token_id]
-
-            if math.isinf(score):
-                score = 0
 
             scores.append(probability)
 
@@ -131,15 +124,10 @@ def compute_reasoning_advantage(
 
     score_with_tt = compute_score(prompt_with_tt, token_ids=token_ids)
 
-    if math.isinf(score_with_tt) or math.isinf(score_without_tt):
-        return 0
-
     reasoning_advantage = score_with_tt - score_without_tt
 
-    if reasoning_advantage > 1:
-        reasoning_advantage = 1
-    elif reasoning_advantage < -1:
-        reasoning_advantage = -1
+    if reasoning_advantage > 0:
+        reasoning_advantage = 1.0
 
     return reasoning_advantage
 
