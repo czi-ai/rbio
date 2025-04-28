@@ -103,6 +103,7 @@ def create_differential_expression_dataset_csv_dataset(
         "system_prompt": [],
         "user_prompt": [],
         "label": [],
+        "cell_line": [],
         "dataset_name": [],
         "gene_perturbed": [],
         "gene_monitored": [],
@@ -132,6 +133,7 @@ def create_differential_expression_dataset_csv_dataset(
             dataset["system_prompt"].append(system_prompt)
             dataset["user_prompt"].append(question)
             dataset["label"].append(label)
+            dataset["cell_line"].append(cell_line)
             dataset["dataset_name"].append(perqa_dataset_name)
             dataset["gene_perturbed"].append(curr_data["pert"])
             dataset["gene_monitored"].append(curr_data["gene"])
