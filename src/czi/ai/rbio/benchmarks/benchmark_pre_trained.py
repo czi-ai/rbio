@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import click
 import pandas as pd
@@ -40,12 +40,12 @@ def benchmark_pretrained(
 
         generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
         generated_ids = [
-            output_ids[len(input_ids):]
+            output_ids[len(input_ids) :]
             for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
         ]
 
         responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-        
+
         for text, response, label in zip(texts, responses, labels):
             answer = extract_answer(response)
             bool_label = label == 1
@@ -55,18 +55,20 @@ def benchmark_pretrained(
                 "prompt": text,
                 "completion": response,
                 "answer": answer,
-                "binary_answer": 1 if answer is True else (0 if answer is False else -1),
+                "binary_answer": (
+                    1 if answer is True else (0 if answer is False else -1)
+                ),
                 "ground_truth": bool_label,
             }
             results.append(result)
 
     # Convert results to DataFrame
     results_df = pd.DataFrame(results)
-    
+
     # Create output directory if it doesn't exist
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Save results
     results_df.to_csv(output_path, index=False)
     print(f"Results saved to: {output_path}")

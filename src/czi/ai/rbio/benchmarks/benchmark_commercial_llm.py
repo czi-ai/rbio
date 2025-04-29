@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import click
 import pandas as pd
@@ -21,7 +21,7 @@ def benchmark_commercial_llm(
     )
 
     dataset = pd.read_csv(dataset_path)
-    
+
     # Initialize list to store results
     results: List[Dict[str, Any]] = []
 
@@ -58,11 +58,11 @@ def benchmark_commercial_llm(
 
     # Convert results to DataFrame
     results_df = pd.DataFrame(results)
-    
+
     # Create output directory if it doesn't exist
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Save results
     results_df.to_csv(output_path, index=False)
     print(f"Results saved to: {output_path}")
@@ -81,7 +81,11 @@ def benchmark_commercial_llm(
 )
 @click.option("--output-path", help="Path to save results (CSV file)", required=True)
 def benchmark(
-    dataset_path: os.PathLike, llm_model: str, llm_endpoint: str, llm_api_key: str, output_path: os.PathLike,
+    dataset_path: os.PathLike,
+    llm_model: str,
+    llm_endpoint: str,
+    llm_api_key: str,
+    output_path: os.PathLike,
 ):
     benchmark_commercial_llm(
         dataset_path=dataset_path,
