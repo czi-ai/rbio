@@ -1,11 +1,11 @@
+import os
 import pathlib
 
-import perturbqa
-import os
-import pandas as pd
-from perturbqa import load_de, load_dir, auc_per_gene
-from datasets import Dataset, load_dataset
 import click
+import pandas as pd
+import perturbqa
+from datasets import Dataset, load_dataset
+from perturbqa import auc_per_gene, load_de, load_dir
 
 
 def generate_prompt_column(

@@ -1,10 +1,12 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from tqdm import tqdm
-import pandas as pd
 import os
-import click
 import re
+
+import click
+import pandas as pd
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from czi.ai.rbio.data.datasets import RbioDataset
 
 
@@ -47,12 +49,12 @@ def benchmark_pretrained(
 
         generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
         generated_ids = [
-            output_ids[len(input_ids):]
+            output_ids[len(input_ids) :]
             for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
         ]
 
         responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-        
+
         for response, label in zip(responses, labels):
             answer = extract_answer(response)
             bool_label = label == 1

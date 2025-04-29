@@ -1,12 +1,13 @@
 import os
-import click
 import random
 
+import click
 import pandas as pd
 from datasets import Dataset
 from transformers import AutoTokenizer
 from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
+
 from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
     genes_mentioned_in_think,

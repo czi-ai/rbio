@@ -1,9 +1,10 @@
+import re
+
 from czi.ai.rbio.model.verifiers import (
     check_math_solution,
     test_code_solution,
     test_vcm_task,
 )
-import re
 
 
 def math_reward_func(prompts, completions, task, **kwargs):

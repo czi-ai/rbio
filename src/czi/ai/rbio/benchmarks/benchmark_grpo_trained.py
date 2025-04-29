@@ -1,11 +1,13 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.modeling_utils import load_sharded_checkpoint
-import pandas as pd
-from tqdm import tqdm
 import os
 import re
+
 import click
+import pandas as pd
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.modeling_utils import load_sharded_checkpoint
+
 from czi.ai.rbio.data.datasets import RbioDataset
 
 
@@ -51,12 +53,12 @@ def benchmark_grpo_trained(
 
         generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
         generated_ids = [
-            output_ids[len(input_ids):]
+            output_ids[len(input_ids) :]
             for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
         ]
 
         responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-        
+
         for response, label in zip(responses, labels):
             answer = extract_answer(response)
             bool_label = label == 1
@@ -86,9 +88,16 @@ def benchmark_grpo_trained(
 @click.command()
 @click.option("--dataset-path", help="Dataset CSV file path", required=True)
 @click.option("--model-name", help="Huggingface model name", required=True)
-@click.option("--grpo-checkpoint", help="Path of trained model checkpoint", required=True)
+@click.option(
+    "--grpo-checkpoint", help="Path of trained model checkpoint", required=True
+)
 @click.option("--batch-size", help="Batch size for inference", default=8, type=int)
-def benchmark(dataset_path: os.PathLike, model_name: str, grpo_checkpoint: os.PathLike, batch_size: int):
+def benchmark(
+    dataset_path: os.PathLike,
+    model_name: str,
+    grpo_checkpoint: os.PathLike,
+    batch_size: int,
+):
     benchmark_grpo_trained(
         dataset_path=dataset_path,
         model_name=model_name,
