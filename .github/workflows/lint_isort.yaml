@@ -1,0 +1,26 @@
+name: Check import sorting with isort
+run-name: ${{ github.actor }} checking import sorting in ${{ github.repository }}/${{ github.ref }}
+on: [push]
+
+jobs:
+  isort-checker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          pip install -e ${{ github.workspace }}
+          pip install isort
+          
+      - name: Check import sorting
+        run: |
+          isort ${{ github.workspace }} --check-only --profile black
+          
+      - run: echo "Import sorting check has exited with status ${{ job.status }}." 
