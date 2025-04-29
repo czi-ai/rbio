@@ -4,6 +4,9 @@ import pandas as pd
 import os
 import click
 import re
+import torch
+from torch.utils.data import DataLoader
+from czi.ai.rbio.data.datasets import RbioDataset
 
 
 def extract_answer(text):
@@ -20,6 +23,7 @@ def extract_answer(text):
 def benchmark_pretrained(
     dataset_path: os.PathLike,
     model_name: str,
+    batch_size: int = 8,
 ):
 
     model = AutoModelForCausalLM.from_pretrained(
@@ -28,6 +32,8 @@ def benchmark_pretrained(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     dataset = pd.read_csv(dataset_path)
+    rbio_dataset = RbioDataset(dataset, tokenizer)
+    dataloader = DataLoader(rbio_dataset, batch_size=batch_size, shuffle=False)
 
     stats = {
         "fp": 0,
@@ -37,48 +43,35 @@ def benchmark_pretrained(
         "unanswered": 0,
     }
 
-    for index, row in tqdm(dataset.iterrows(), total=dataset.shape[0]):
-        system_prompt = row["system_prompt"]
-        user_prompt = row["user_prompt"]
-        label = row["label"]
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-
-        text = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-
-        model_inputs = tokenizer([text], return_tensors="pt").to("cuda")
+    for batch_idx, (texts, labels) in enumerate(tqdm(dataloader)):
+        model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to("cuda")
 
         generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
         generated_ids = [
-            output_ids[len(input_ids) :]
+            output_ids[len(input_ids):]
             for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
         ]
 
-        response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+        
+        for response, label in zip(responses, labels):
+            answer = extract_answer(response)
+            bool_label = label == 1
 
-        answer = extract_answer(response)
+            if answer is not None:
+                if answer == True and bool_label == True:
+                    stats["tp"] += 1
+                elif answer == True and bool_label == False:
+                    stats["fp"] += 1
+                elif answer == False and bool_label == False:
+                    stats["tn"] += 1
+                elif answer == False and bool_label == True:
+                    stats["fn"] += 1
+            else:
+                stats["unanswered"] += 1
 
-        bool_label = label == 1
-
-        if answer is not None:
-            if answer == True and bool_label == True:
-                stats["tp"] += 1
-            elif answer == True and bool_label == False:
-                stats["fp"] += 1
-            elif answer == False and bool_label == False:
-                stats["tn"] += 1
-            elif answer == False and bool_label == True:
-                stats["fn"] += 1
-        else:
-            stats["unanswered"] += 1
-
-        if int(index) % 100 == 0:
-            print(f"Partial results @ {index}: {stats}")
+        if batch_idx % 10 == 0:  # Print stats every 10 batches
+            print(f"Partial results @ batch {batch_idx}: {stats}")
 
     print(f"STATS HAVE BEEN GENERATED FOR DATASET {dataset_path}")
     print(stats)
@@ -90,8 +83,13 @@ def benchmark_pretrained(
 @click.command()
 @click.option("--dataset-path", help="Dataset CSV file path", required=True)
 @click.option("--model-name", help="Huggingface model name", required=True)
-def benchmark(dataset_path: os.PathLike, model_name: str):
-    benchmark_pretrained(dataset_path=dataset_path, model_name=model_name)
+@click.option("--batch-size", help="Batch size for inference", default=8, type=int)
+def benchmark(dataset_path: os.PathLike, model_name: str, batch_size: int):
+    benchmark_pretrained(
+        dataset_path=dataset_path,
+        model_name=model_name,
+        batch_size=batch_size,
+    )
 
 
 if __name__ == "__main__":
