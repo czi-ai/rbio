@@ -4,7 +4,6 @@ import pandas as pd
 import os
 import click
 import re
-import torch
 from torch.utils.data import DataLoader
 from czi.ai.rbio.data.datasets import RbioDataset
 

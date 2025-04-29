@@ -5,7 +5,6 @@ from tqdm import tqdm
 import os
 import re
 import click
-import torch
 from torch.utils.data import DataLoader
 from czi.ai.rbio.data.datasets import RbioDataset
 
