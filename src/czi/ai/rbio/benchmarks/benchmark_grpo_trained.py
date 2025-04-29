@@ -28,6 +28,10 @@ def benchmark_grpo_trained(
 
     load_sharded_checkpoint(model, model_checkpoint, strict=False)
 
+    tokenizer.padding_side = "left"
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
     dataset = pd.read_csv(dataset_path)
     grpo_dataset = RbioDataset(dataset, tokenizer)
     dataloader = DataLoader(grpo_dataset, batch_size=batch_size, shuffle=False)

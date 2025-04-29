@@ -23,6 +23,10 @@ def benchmark_pretrained(
         model_name, torch_dtype="auto", device_map="auto"
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    # Set left padding for decoder-only architecture
+    tokenizer.padding_side = "left"
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
 
     dataset = pd.read_csv(dataset_path)
     rbio_dataset = RbioDataset(dataset, tokenizer)
