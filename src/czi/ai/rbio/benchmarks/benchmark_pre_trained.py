@@ -58,7 +58,7 @@ def benchmark_pretrained(
                 "binary_answer": (
                     1 if answer is True else (0 if answer is False else -1)
                 ),
-                "ground_truth": bool_label,
+                "ground_truth": bool_label.item(),
             }
             results.append(result)
 
