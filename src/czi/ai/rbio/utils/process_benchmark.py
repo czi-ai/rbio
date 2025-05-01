@@ -9,17 +9,8 @@ from sklearn.metrics import roc_auc_score
 
 def calculate_metrics(
     ground_truth: pd.Series, predictions: pd.Series
-) -> Tuple[int, int, int, int, float]:
-    """
-    Calculate TP, FP, TN, FN and AUC ROC from ground truth and predictions.
+) -> Tuple[int, int, int, int, float, float, float, float, float]:
 
-    Args:
-        ground_truth: Series containing ground truth labels (0 or 1)
-        predictions: Series containing predicted labels (0 or 1)
-
-    Returns:
-        Tuple containing (TP, FP, TN, FN, AUC)
-    """
     # Convert to boolean for easier comparison
     ground_truth_bool = ground_truth.astype(bool)
     predictions_bool = predictions.astype(bool)
@@ -37,33 +28,65 @@ def calculate_metrics(
         # Handle case where all predictions are the same
         auc_score = 0.5
 
-    return true_positives, false_positives, true_negatives, false_negatives, auc_score
+        # Calculate additional metrics
+        accuracy = (true_positives + true_negatives) / (
+            true_positives + true_negatives + false_positives + false_negatives
+        )
+        precision = (
+            true_positives / (true_positives + false_positives)
+            if (true_positives + false_positives) > 0
+            else 0
+        )
+        recall = (
+            true_positives / (true_positives + false_negatives)
+            if (true_positives + false_negatives) > 0
+            else 0
+        )
+        f1 = (
+            2 * (precision * recall) / (precision + recall)
+            if (precision + recall) > 0
+            else 0
+        )
+
+    return (
+        true_positives,
+        false_positives,
+        true_negatives,
+        false_negatives,
+        auc_score,
+        accuracy,
+        precision,
+        recall,
+        f1,
+    )
 
 
-def process_benchmark_results(benchmark_csv_path: os.PathLike) -> None:
-    """
-    Process benchmark results from a CSV file and print metrics.
-
-    Args:
-        benchmark_csv_path: Path to the CSV file containing benchmark results
-    """
+@click.command()
+@click.option(
+    "--results-csv",
+    required=True,
+    help="Path to the CSV file containing benchmark results",
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option(
+    "--group-by-target",
+    default=True,
+    help="Whether the stats should be grouped by target gene and then averaged",
+    type=bool,
+)
+def main(results_csv: str, group_by_target: bool) -> None:
     # Read the CSV file
-    results_df = pd.read_csv(benchmark_csv_path)
+    all_results = pd.read_csv(results_csv)
 
-    # Calculate metrics
-    tp, fp, tn, fn, auc = calculate_metrics(
-        results_df["ground_truth"], results_df["binary_answer"]
-    )
+    if group_by_target:
+        targets = all_results["gene_monitored"].unique()
 
-    # Calculate additional metrics
-    accuracy = (tp + tn) / (tp + tn + fp + fn)
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-    f1 = (
-        2 * (precision * recall) / (precision + recall)
-        if (precision + recall) > 0
-        else 0
-    )
+        for target in targets:
+            # Calculate metrics
+            tp, fp, tn, fn, auc, accuracy, precision, recall, f1 = calculate_metrics(
+                all_results[all_results.observed_gene == target]["ground_truth"],
+                all_results[all_results.observed_gene == target]["binary_answer"],
+            )
 
     # Print results
     print("\nBenchmark Results:")
@@ -77,20 +100,6 @@ def process_benchmark_results(benchmark_csv_path: os.PathLike) -> None:
     print(f"Recall: {recall:.4f}")
     print(f"F1 Score: {f1:.4f}")
     print(f"AUC ROC: {auc:.4f}")
-
-
-@click.command()
-@click.option(
-    "--results-csv",
-    required=True,
-    help="Path to the CSV file containing benchmark results",
-    type=click.Path(exists=True, dir_okay=False),
-)
-def main(results_csv: str) -> None:
-    """
-    Process benchmark results from a CSV file and display metrics.
-    """
-    process_benchmark_results(results_csv)
 
 
 if __name__ == "__main__":

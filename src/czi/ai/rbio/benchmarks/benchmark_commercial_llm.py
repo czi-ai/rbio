@@ -1,9 +1,12 @@
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List
 
 import click
 import pandas as pd
+from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 from tqdm import tqdm
 
 from czi.ai.rbio.utils.utils import extract_answer
@@ -12,8 +15,9 @@ from czi.ai.rbio.utils.utils import extract_answer
 def benchmark_commercial_llm(
     dataset_path: os.PathLike,
     llm_model: str,
+    output_path: os.PathLike,
     llm_endpoint: str = os.environ["LLM_ENDPOINT_URL"],
-    llm_api_key: str = os.environ["LLM_ENDPOINT_KEY"],
+    llm_api_key: SecretStr = os.environ["LLM_ENDPOINT_KEY"],
 ):
 
     llm = ChatOpenAI(
@@ -29,6 +33,8 @@ def benchmark_commercial_llm(
         system_prompt = row["system_prompt"]
         user_prompt = row["user_prompt"]
         label = row["label"]
+        gene_perturbed = row["gene_perturbed"]
+        gene_monitored = row["gene_monitored"]
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -53,6 +59,8 @@ def benchmark_commercial_llm(
             "answer": answer,
             "binary_answer": 1 if answer is True else (0 if answer is False else -1),
             "ground_truth": bool_label,
+            "gene_perturbed": gene_perturbed,
+            "gene_monitored": gene_monitored,
         }
         results.append(result)
 

@@ -17,6 +17,8 @@ class RbioDataset(Dataset):
         system_prompt = row["system_prompt"]
         user_prompt = row["user_prompt"]
         label = row["label"]
+        gene_perturbed = row["gene_perturbed"]
+        gene_monitored = row["gene_monitored"]
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -27,4 +29,4 @@ class RbioDataset(Dataset):
             messages, tokenize=False, add_generation_prompt=True
         )
 
-        return text, label
+        return text, label, gene_perturbed, gene_monitored

@@ -35,7 +35,9 @@ def benchmark_pretrained(
     # Initialize list to store results
     results: List[Dict[str, Any]] = []
 
-    for batch_idx, (texts, labels) in enumerate(tqdm(dataloader)):
+    for batch_idx, (texts, labels, genes_perturbed, genes_monitored) in enumerate(
+        tqdm(dataloader)
+    ):
         model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to("cuda")
 
         generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
@@ -46,7 +48,9 @@ def benchmark_pretrained(
 
         responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
-        for text, response, label in zip(texts, responses, labels):
+        for text, response, label, gene_perturbed, gene_monitored in zip(
+            texts, responses, labels, genes_perturbed, genes_monitored
+        ):
             answer = extract_answer(response)
             bool_label = label == 1
 
@@ -59,6 +63,8 @@ def benchmark_pretrained(
                     1 if answer is True else (0 if answer is False else -1)
                 ),
                 "ground_truth": bool_label.item(),
+                "gene_perturbed": gene_perturbed,
+                "gene_monitored": gene_monitored,
             }
             results.append(result)
 
