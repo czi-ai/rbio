@@ -117,12 +117,12 @@ class Reward:
             reasoning_advantage_reward = 0
 
             if self.verifier_type == "hard":
-                if task == "differential_expression":
+                if tsk == "differential_expression":
                     answer_reward = reward_answer_against_label(completion, lbl == 1)
-                elif task == "direction_of_change":
+                elif tsk == "direction_of_change":
                     pass
             else:
-                if task == "differential_expression":
+                if tsk == "differential_expression":
                     if self.vcm_model is None:
                         self.init_vcm_model()  # lazy instantiation of vcm model
 

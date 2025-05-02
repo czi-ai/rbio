@@ -17,14 +17,15 @@ from transcriptformer.tokenizer.vocab import load_vocabs_and_embeddings
 
 TF_CFG = os.getenv(
     "TF_CFG",
-    "/mnt/project-rbio/inference_config.yaml",
+    "/mnt/czi-sci-ai/project-rbio/transcriptformer/inference_config.yaml",
 )
 TF_MODEL_CKPT = os.getenv(
     "TF_MODEL_CKPT",
-    "/mnt/project-rbio/tf_sapiens",
+    "/mnt/czi-sci-ai/project-rbio/transcriptformer/tf_sapiens",
 )
 GENE2ENSEMBL_ID_FILEPATH = os.getenv(
-    "GENE2ENSEMBL_ID_FILEPATH", "/mnt/project-rbio/gene2ensembl_ids.pkl"
+    "GENE2ENSEMBL_ID_FILEPATH",
+    "/mnt/czi-sci-ai/project-rbio/transcriptformer/gene2ensembl_ids.pkl",
 )
 
 
@@ -59,14 +60,12 @@ def call_vcm(
 
     gene_perturbed_index = torch.Tensor([gene_perturbed_index]).long()
     gene_monitored_index = torch.Tensor([gene_monitored_index]).long()
-    if verification_type == "gene_similarity":
-        gene_embs = model.gene_embeddings.embedding
-        gene_perturbed_emb = gene_embs(gene_perturbed_index)
-        gene_monitored_emb = gene_embs(gene_monitored_index)
-        cos = nn.CosineSimilarity(dim=1, eps=1e-6)
-        gene_similarity = cos(gene_perturbed_emb, gene_monitored_emb)
-    elif verification_type == "mutual_information":
-        return 0
+
+    gene_embs = model.gene_embeddings.embedding
+    gene_perturbed_emb = gene_embs(gene_perturbed_index)
+    gene_monitored_emb = gene_embs(gene_monitored_index)
+    cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+    gene_similarity = cos(gene_perturbed_emb, gene_monitored_emb)
 
     return gene_similarity[0]
 

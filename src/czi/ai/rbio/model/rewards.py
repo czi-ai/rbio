@@ -2,12 +2,7 @@ import re
 
 from torch.nn.functional import softmax
 
-from czi.ai.rbio.model.verifiers import (
-    call_vcm,
-    check_math_solution,
-    test_code_solution,
-    test_vcm_task,
-)
+from czi.ai.rbio.model.verifiers import call_vcm
 from czi.ai.rbio.utils.utils import extract_answer, extract_think
 
 
@@ -33,8 +28,8 @@ def reward_gene_similarity_via_vcm(
         .numpy()
     )
 
-    reward = (-1.0 * (answer[0] == "yes") * p_works_vcm) + (
-        1.0 * (answer[0] == "no") * p_works_vcm
+    reward = (-1.0 * (answer == True) * p_works_vcm) + (
+        1.0 * (answer == False) * p_works_vcm
     )
 
     return reward
