@@ -1,2 +1,5 @@
 .idea
 *.lock
+.DS_Store
+.cursor/*
+.vscode/*
