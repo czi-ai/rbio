@@ -1,1 +1,1 @@
-D: Is a knockdown of {0} in {1} cells likely to result in differential expression of {2}?
+D: Is a knockdown of {0} in {1} cells likely to result in differential expression of {2}? The answer is either yes or no.

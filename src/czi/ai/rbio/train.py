@@ -10,6 +10,7 @@ from torch.nn.functional import softmax
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
+from typing import Union, List
 
 from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
@@ -202,7 +203,7 @@ class Reward:
 
 
 def train_fn(
-    dataset_path: os.PathLike,
+    dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
     output_dir: os.PathLike,
     resume_from_checkpoint: bool = False,
@@ -216,7 +217,15 @@ def train_fn(
     )
     os.environ["MLFLOW_EXPERIMENT_NAME"] = "rbio"
 
-    df = pd.read_csv(dataset_path)
+    if hasattr(dataset_path, "__iter__"):
+        df_list = []
+
+        for dp in dataset_path:
+            df_list.append(pd.read_csv(dp))
+
+        df = pd.concat(df_list)
+    else:
+        df = pd.read_csv(dataset_path)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name)
@@ -250,7 +259,9 @@ def train_fn(
 
 
 @click.command()
-@click.option("--dataset-path", help="Dataset CSV file path", required=True)
+@click.option(
+    "--dataset-path", help="Dataset CSV file path", required=True, multiple=True
+)
 @click.option(
     "--model-name", help="The name of the LLM model in huggingface", required=True
 )
@@ -265,7 +276,7 @@ def train_fn(
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
 def train(
-    dataset_path: os.PathLike,
+    dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
     checkpoint_dir: os.PathLike,
     resume: bool,
