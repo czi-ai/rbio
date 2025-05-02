@@ -1,21 +1,20 @@
+import json
 import logging
+import os
+import sys
 
 import anndata
+import hydra
+import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-from hydra.utils import instantiate
-from pytorch_lightning.loggers import CSVLogger
-from torch.utils.data import DataLoader
-import os
-import hydra
 import yaml
+from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
-import json
-import numpy as np
+from pytorch_lightning.loggers import CSVLogger
 from torch import nn
-
-import sys
+from torch.utils.data import DataLoader
 
 module_dir = os.path.join(
     os.path.dirname(__file__), "../transcriptformer/src", "transcriptformer"
@@ -26,8 +25,8 @@ print(sys.path)
 
 from data.dataloader import AnnDataset
 from model.embedding_surgery import change_embedding_layer
-from tokenizer.vocab import load_vocabs_and_embeddings
 from tf_utils.utils import stack_dict
+from tokenizer.vocab import load_vocabs_and_embeddings
 
 TF_CFG = "/opt/jupyter-envs/rbio/rbio-dev-ana/work/rbio/transcriptformer/conf/inference_config.yaml"
 TF_MODEL_CKPT = "/opt/jupyter-envs/rbio/rbio-dev-ana/work/rbio/transcriptformer/checkpoints/tf_sapiens"

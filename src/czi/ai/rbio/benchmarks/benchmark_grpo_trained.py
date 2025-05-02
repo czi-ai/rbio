@@ -1,10 +1,11 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.modeling_utils import load_sharded_checkpoint
-import pandas as pd
-from tqdm import tqdm
 import os
 import re
+
 import click
+import pandas as pd
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.modeling_utils import load_sharded_checkpoint
 
 
 def extract_answer(text):

@@ -1,10 +1,11 @@
-from tqdm import tqdm
-from langchain_openai import ChatOpenAI
 import os
-import pandas as pd
-import time
 import re
+import time
+
 import click
+import pandas as pd
+from langchain_openai import ChatOpenAI
+from tqdm import tqdm
 
 
 def extract_answer(text):

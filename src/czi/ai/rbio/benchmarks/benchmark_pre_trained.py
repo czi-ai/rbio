@@ -1,9 +1,10 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from tqdm import tqdm
-import pandas as pd
 import os
-import click
 import re
+
+import click
+import pandas as pd
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 def extract_answer(text):
