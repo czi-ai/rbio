@@ -94,7 +94,7 @@ def create_differential_expression_dataset_csv_dataset(
     ),
     user_prompt_template_path: os.PathLike = os.path.join(
         os.path.dirname(__file__),
-        "templates/differential_expression_prompt_templates.txt",
+        "templates/differential_expression_prompt_single_template.txt",
     ),
 ):
     pertqa_dataset_filtered = extract_dataset_from_pertqa(perqa_dataset_name, split)
@@ -215,7 +215,7 @@ def generate_dataset_from_norman_query(task):
     default=pathlib.Path(
         os.path.join(
             os.path.dirname(__file__),
-            "templates/differential_expression_prompt_templates.txt",
+            "templates/differential_expression_prompt_single_template.txt",
         )
     ),
 )
