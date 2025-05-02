@@ -10,3 +10,10 @@ def extract_answer(text):
             return False
 
     return None
+
+
+def extract_think(text, separator="\n"):
+    think_contents = re.findall(
+        r"<think>(.*?)</think>", text, re.DOTALL | re.IGNORECASE
+    )
+    return separator.join(think_contents).strip()

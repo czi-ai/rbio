@@ -1,12 +1,10 @@
 import json
 import logging
 import os
-import sys
+import pickle
 
-import anndata
 import hydra
 import numpy as np
-import pandas as pd
 import pytorch_lightning as pl
 import torch
 import yaml
@@ -14,22 +12,20 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.loggers import CSVLogger
 from torch import nn
-from torch.utils.data import DataLoader
+from transcriptformer.model.embedding_surgery import change_embedding_layer
+from transcriptformer.tokenizer.vocab import load_vocabs_and_embeddings
 
-module_dir = os.path.join(
-    os.path.dirname(__file__), "../transcriptformer/src", "transcriptformer"
+TF_CFG = os.getenv(
+    "TF_CFG",
+    "/mnt/project-rbio/inference_config.yaml",
 )
-sys.path.append(module_dir)
-
-print(sys.path)
-
-from data.dataloader import AnnDataset
-from model.embedding_surgery import change_embedding_layer
-from tf_utils.utils import stack_dict
-from tokenizer.vocab import load_vocabs_and_embeddings
-
-TF_CFG = "/opt/jupyter-envs/rbio/rbio-dev-ana/work/rbio/transcriptformer/conf/inference_config.yaml"
-TF_MODEL_CKPT = "/opt/jupyter-envs/rbio/rbio-dev-ana/work/rbio/transcriptformer/checkpoints/tf_sapiens"
+TF_MODEL_CKPT = os.getenv(
+    "TF_MODEL_CKPT",
+    "/mnt/project-rbio/tf_sapiens",
+)
+GENE2ENSEMBL_ID_FILEPATH = os.getenv(
+    "GENE2ENSEMBL_ID_FILEPATH", "/mnt/project-rbio/gene2ensembl_ids.pkl"
+)
 
 
 def call_vcm(
@@ -77,6 +73,8 @@ def call_vcm(
 
 def instantiate_vcm(model_type):
     if model_type == "transcriptformer":
+        gene2ensemble_id = pickle.load(open(GENE2ENSEMBL_ID_FILEPATH, "rb"))
+
         cfg = yaml.load(open(TF_CFG, "r"), Loader=yaml.SafeLoader)
         config_path = os.path.join(cfg["model"]["checkpoint_path"], "config.json")
         with open(config_path) as f:
@@ -148,49 +146,4 @@ def instantiate_vcm(model_type):
             model, gene_vocab = change_embedding_layer(
                 model, pretrained_embedding_paths
             )
-        return model, gene_vocab
-
-
-def check_math_solution(prompt, completion):
-    """
-    Verifier for math solutions. Checks if a completion corresponding to a math solution is correct.
-
-    Args:
-        prompt: prompt to the model
-        completion: model completion to the prompt, corresponding to a solution to a math equation
-    Returns:
-        True if the math solution corresponds to the given prompt
-    """
-    # TO-DO: complete implementation
-    return True
-
-
-def test_code_solution(prompt, completion):
-    """
-    Verifier for coding. Tests if completion corresponding to a coding task is correct.
-    Runs the code and returns True if code runs.
-
-    Args:
-        prompt: prompt to the model
-        completion: model completion to the prompt, corresponding to a program
-    Returns:
-        True if the completion corresponding to the generated code runs
-    """
-    # TO-DO: complete implementation
-    return True
-
-
-def test_vcm_task(prompt, completion, vcm, task):
-    """
-    Verifier for VCM task. Tests if completion corresponding to a VCM task is correct.
-    Runs the task using VCM and returns True if task is verifiable by the VCM model.
-
-    Args:
-        prompt: prompt to the model
-        completion: model completion to the prompt, corresponding to a program
-        vcm: vcm model to use
-    Returns:
-        True if the completion is verifiable by the vcm
-    """
-    # TO-DO: complete implementation
-    return True
+        return model, gene_vocab, gene2ensemble_id

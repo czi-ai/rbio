@@ -1,13 +1,10 @@
-import math
 import os
 import random
-import re
-from typing import List, Union
+from typing import List, Optional, Union
 
 import click
 import pandas as pd
 from datasets import Dataset
-from torch.nn.functional import softmax
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
@@ -15,8 +12,10 @@ from trl import GRPOConfig, GRPOTrainer
 from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
     genes_mentioned_in_think,
+    reward_answer_against_label,
+    reward_gene_similarity_via_vcm,
 )
-from czi.ai.rbio.utils.utils import extract_answer
+from czi.ai.rbio.model.verifiers import instantiate_vcm
 
 
 def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
@@ -54,6 +53,7 @@ def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
             "label": dataset_row["label"],
             "gene_perturbed": dataset_row["gene_perturbed"],
             "gene_monitored": dataset_row["gene_monitored"],
+            "task": dataset_row["task"],
             "system_prompt": dataset_row["system_prompt"],
             "user_prompt": dataset_row["user_prompt"],
         }
@@ -61,83 +61,28 @@ def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
         yield return_data
 
 
-def extract_think_contents(text, separator="\n"):
-    think_contents = re.findall(
-        r"<think>(.*?)</think>", text, re.DOTALL | re.IGNORECASE
-    )
-    return separator.join(think_contents).strip()
-
-
-def compute_reasoning_advantage(
-    model, tokenizer, system_prompt, user_prompt, completion, label
-):
-    answer = extract_answer(completion)
-
-    if answer is not None:
-        if answer:
-            answer = ["yes", " yes", "yes ", " yes "]
-        else:
-            answer = ["no", " no", "no ", " no "]
-
-    else:
-        return 0
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
-    prompt = tokenizer.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=True
-    )
-
-    prompt_with_tt = (
-        prompt + " <think> " + extract_think_contents(completion) + " </think> <answer>"
-    )
-
-    prompt_without_tt = prompt + " <think> </think> <answer>"
-
-    def compute_score(prompt, token_ids):
-        inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=1,
-            return_dict_in_generate=True,
-            output_scores=True,
-            output_logits=True,
-        )
-
-        scores = []
-        for token_id in token_ids:
-
-            probability = softmax(outputs.logits[0][0])[token_id]
-
-            scores.append(probability)
-
-        return max(scores)
-
-    t_ids = tokenizer(answer)["input_ids"]
-
-    token_ids = []
-    for t_id in t_ids:
-        token_ids.extend(t_id)
-
-    score_without_tt = compute_score(prompt_without_tt, token_ids=token_ids)
-
-    score_with_tt = compute_score(prompt_with_tt, token_ids=token_ids)
-
-    reasoning_advantage = score_with_tt - score_without_tt
-
-    if reasoning_advantage > 0:
-        reasoning_advantage = 1.0
-
-    return reasoning_advantage
-
-
 class Reward:
-    def __init__(self, model: AutoModelForCausalLM, tokenizer: AutoTokenizer):
+    def __init__(
+        self,
+        model: AutoModelForCausalLM,
+        tokenizer: AutoTokenizer,
+        verifier_type: Optional[str] = "hard",
+        vcm_verifier_type: Optional[str] = "transcriptformer",
+    ):
         self.model = model
         self.tokenizer = tokenizer
         self.count = 0
+        self.vcm_verifier_type = vcm_verifier_type
+        self.verifier_type = verifier_type
+
+        self.vcm_model = None
+        self.vcm_gene_vocab = None
+        self.gene2ensembl_id = None
+
+    def init_vcm_model(self):
+        self.vcm_model, self.vcm_gene_vocab, self.gene2ensembl_id = instantiate_vcm(
+            self.vcm_verifier_type
+        )
 
     def compute_reward(
         self,
@@ -147,34 +92,49 @@ class Reward:
         gene_monitored: list,
         system_prompt: list,
         user_prompt: list,
+        task: list,
         **kwargs,
     ):
         scores = []
 
-        for completion, lbl, gp, gm, sys_p, usr_p in zip(
+        for completion, lbl, gp, gm, sys_p, usr_p, tsk in zip(
             completions,
             label,
             gene_perturbed,
             gene_monitored,
             system_prompt,
             user_prompt,
+            task,
         ):
             format_reward = composite_formatting_reward(completion)
 
-            answer_from_text = extract_answer(completion)
-
             mention_reward = genes_mentioned_in_think(completion, gp, gm)
 
-            reasoning_advantage_reward = compute_reasoning_advantage(
-                self.model, self.tokenizer, sys_p, usr_p, completion, label
-            )
+            # reasoning_advantage_reward = compute_reasoning_advantage(
+            #    self.model, self.tokenizer, sys_p, usr_p, completion, label
+            # )
 
-            bool_label = lbl == 1
+            reasoning_advantage_reward = 0
 
-            if answer_from_text is not None:
-                answer_reward = float(answer_from_text == bool_label)
+            if self.verifier_type == "hard":
+                if task == "differential_expression":
+                    answer_reward = reward_answer_against_label(completion, lbl == 1)
+                elif task == "direction_of_change":
+                    pass
             else:
-                answer_reward = 0
+                if task == "differential_expression":
+                    if self.vcm_model is None:
+                        self.init_vcm_model()  # lazy instantiation of vcm model
+
+                    answer_reward = reward_gene_similarity_via_vcm(
+                        gene_perturbed=gp,
+                        gene_monitored=gm,
+                        completion=completion,
+                        task=tsk,
+                        gene2ensembl_id=self.gene2ensembl_id,
+                        vcm_model=self.vcm_model,
+                        gene_vocab=self.vcm_gene_vocab,
+                    )
 
             if self.count % 10 == 0:
                 print(f"system prompt: {sys_p}")
@@ -210,6 +170,7 @@ def train_fn(
     trainer_args: GRPOConfig = None,
     per_device_train_batch_size: int = 4,
     num_generations: int = 4,
+    verifier_type: str = "hard",
 ):
     os.environ["HF_MLFLOW_LOG_ARTIFACTS"] = "false"
     os.environ["MLFLOW_TRACKING_URI"] = (
@@ -245,7 +206,7 @@ def train_fn(
 
     trainer_args.output_dir = str(output_dir)
 
-    reward = Reward(model, tokenizer)
+    reward = Reward(model, tokenizer, verifier_type=verifier_type)
 
     trainer = GRPOTrainer(
         model=model,
@@ -275,6 +236,7 @@ def train_fn(
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
+@click.option("--verifier-type", help="type of verifier, hard or soft", default="hard")
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -282,6 +244,7 @@ def train(
     resume: bool,
     batch_size: int,
     n_generations: int,
+    verifier_type: str,
 ):
     train_fn(
         dataset_path=dataset_path,
@@ -290,6 +253,7 @@ def train(
         resume_from_checkpoint=resume,
         per_device_train_batch_size=batch_size,
         num_generations=n_generations,
+        verifier_type=verifier_type,
     )
 
 

@@ -24,6 +24,8 @@ dependencies = [
 [tool.poetry]
 packages = [{include = "czi", from = "src"}]
 
+[tool.isort]
+profile = "black"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
