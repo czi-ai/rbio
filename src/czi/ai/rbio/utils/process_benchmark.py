@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from statistics import mean
 from typing import Tuple
 
 import click
@@ -70,13 +71,23 @@ def calculate_metrics(
 )
 @click.option(
     "--group-by-target",
-    default=True,
+    default=False,
     help="Whether the stats should be grouped by target gene and then averaged",
     type=bool,
 )
 def main(results_csv: str, group_by_target: bool) -> None:
     # Read the CSV file
     all_results = pd.read_csv(results_csv)
+
+    tps = []
+    fps = []
+    tns = []
+    fns = []
+    accuracies = []
+    precisions = []
+    recalls = []
+    f1s = []
+    aucs = []
 
     if group_by_target:
         targets = all_results["gene_monitored"].unique()
@@ -88,18 +99,43 @@ def main(results_csv: str, group_by_target: bool) -> None:
                 all_results[all_results.observed_gene == target]["binary_answer"],
             )
 
+            tps.append(tp)
+            fps.append(fp)
+            tns.append(tn)
+            fns.append(fn)
+            aucs.append(auc)
+            accuracies.append(accuracy)
+            precisions.append(precision)
+            recalls.append(recall)
+            f1s.append(f1)
+    else:
+        tp, fp, tn, fn, auc, accuracy, precision, recall, f1 = calculate_metrics(
+            all_results["ground_truth"],
+            all_results["binary_answer"],
+        )
+
+        tps.append(tp)
+        fps.append(fp)
+        tns.append(tn)
+        fns.append(fn)
+        aucs.append(auc)
+        accuracies.append(accuracy)
+        precisions.append(precision)
+        recalls.append(recall)
+        f1s.append(f1)
+
     # Print results
     print("\nBenchmark Results:")
     print("-----------------")
-    print(f"True Positives (TP): {tp}")
-    print(f"False Positives (FP): {fp}")
-    print(f"True Negatives (TN): {tn}")
-    print(f"False Negatives (FN): {fn}")
-    print(f"\nAccuracy: {accuracy:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"F1 Score: {f1:.4f}")
-    print(f"AUC ROC: {auc:.4f}")
+    print(f"True Positives (TP): {mean(tps)}")
+    print(f"False Positives (FP): {mean(fps)}")
+    print(f"True Negatives (TN): {mean(tns)}")
+    print(f"False Negatives (FN): {mean(fns)}")
+    print(f"\nAccuracy: {mean(accuracies):.4f}")
+    print(f"Precision: {mean(precisions):.4f}")
+    print(f"Recall: {mean(recalls):.4f}")
+    print(f"F1 Score: {mean(f1s):.4f}")
+    print(f"AUC ROC: {mean(aucs):.4f}")
 
 
 if __name__ == "__main__":
