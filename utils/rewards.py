@@ -1,4 +1,4 @@
-from utils.verifiers import check_math_solution, test_code_solution, test_vcm_task
+from utils.verifiers import call_vcm
 import re
 
 
@@ -48,7 +48,7 @@ def coding_reward_func(prompts, completions, task, **kwargs):
     return rewards
 
 
-def perturb_reward_func(prompts, completions, task, **kwargs):
+def vcm_reward_func(gene_perturbed, gene_monitored, completion, task, gene2ensembl_id, model, gene_vocab):
     """
     Perturbation reward function. Checks a number of completions in response to a list of perturbation prompts and assigns rewards 
     
@@ -58,17 +58,17 @@ def perturb_reward_func(prompts, completions, task, **kwargs):
     Returns:
         rewards: list of rewards accumulated by checking the prompts
     """
-    rewards = []
-    for prompt, completion, t in zip(prompts, completions, task):
-        if t == "perturbation":
-            # invoke ML model
-            works = test_vcm_task(prompt, completion, vcm, task)
-            reward = 1.0 if works else -1.0
-            rewards.append(reward)
-        else:
-            # Return None for non-coding tasks
-            rewards.append(None)
-    return rewards
+    if task == "gene_similarity":
+        # invoke ML model
+        answer_matches = re.findall(r'<answer>.*?</answer>', completion, re.DOTALL)
+        answer = [x.split('<answer>')[1].split('</answer>')[0].strip() for x in answer_matches]
+        if len(answer) == 0:
+            return -2.0 #functional mismatch
+        p_works_vcm = call_vcm(gene_perturbed, gene_monitored, gene2ensembl_id, model, gene_vocab, task).detach().numpy()
+        reward = (-1.0 * (answer[0] == 'yes') * p_works_vcm) + (1.0 * (answer[0] == 'no') * p_works_vcm)
+    else:
+        reward = 0.0
+    return reward
 
 
 def has_at_least_one_think(text):
