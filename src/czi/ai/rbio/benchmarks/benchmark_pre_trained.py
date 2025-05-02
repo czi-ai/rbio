@@ -1,58 +1,47 @@
 import os
-import re
+
+
+from pathlib import Path
+from typing import Any, Dict, List
 
 import click
 import pandas as pd
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from czi.ai.rbio.data.datasets import RbioDataset
+from czi.ai.rbio.utils.utils import extract_answer
 
-def extract_answer(text):
-    found = re.search(r"<answer>\s*(yes|no)\s*</answer>", text, re.IGNORECASE)
-    if found:
-        if found.group(1).strip().lower() == "yes":
-            return True
-        if found.group(1).strip().lower() == "no":
-            return False
-
-    return None
 
 
 def benchmark_pretrained(
     dataset_path: os.PathLike,
     model_name: str,
-):
+    output_path: os.PathLike,
+    batch_size: int = 8,
+) -> None:
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype="auto", device_map="auto"
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    # Set left padding for decoder-only architecture
+    tokenizer.padding_side = "left"
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
 
     dataset = pd.read_csv(dataset_path)
+    rbio_dataset = RbioDataset(dataset, tokenizer)
+    dataloader = DataLoader(rbio_dataset, batch_size=batch_size, shuffle=False)
 
-    stats = {
-        "fp": 0,
-        "fn": 0,
-        "tp": 0,
-        "tn": 0,
-        "unanswered": 0,
-    }
+    # Initialize list to store results
+    results: List[Dict[str, Any]] = []
 
-    for index, row in tqdm(dataset.iterrows(), total=dataset.shape[0]):
-        system_prompt = row["system_prompt"]
-        user_prompt = row["user_prompt"]
-        label = row["label"]
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-
-        text = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-
-        model_inputs = tokenizer([text], return_tensors="pt").to("cuda")
+    for batch_idx, (texts, labels, genes_perturbed, genes_monitored) in enumerate(
+        tqdm(dataloader)
+    ):
+        model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to("cuda")
 
         generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
         generated_ids = [
@@ -60,39 +49,57 @@ def benchmark_pretrained(
             for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
         ]
 
-        response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
-        answer = extract_answer(response)
+        for text, response, label, gene_perturbed, gene_monitored in zip(
+            texts, responses, labels, genes_perturbed, genes_monitored
+        ):
+            answer = extract_answer(response)
+            bool_label = label == 1
 
-        bool_label = label == 1
+            # Record result
+            result = {
+                "prompt": text,
+                "completion": response,
+                "answer": answer,
+                "binary_answer": (
+                    1 if answer is True else (0 if answer is False else -1)
+                ),
+                "ground_truth": bool_label.item(),
+                "gene_perturbed": gene_perturbed,
+                "gene_monitored": gene_monitored,
+            }
+            results.append(result)
 
-        if answer is not None:
-            if answer == True and bool_label == True:
-                stats["tp"] += 1
-            elif answer == True and bool_label == False:
-                stats["fp"] += 1
-            elif answer == False and bool_label == False:
-                stats["tn"] += 1
-            elif answer == False and bool_label == True:
-                stats["fn"] += 1
-        else:
-            stats["unanswered"] += 1
+    # Convert results to DataFrame
+    results_df = pd.DataFrame(results)
 
-        if int(index) % 100 == 0:
-            print(f"Partial results @ {index}: {stats}")
+    # Create output directory if it doesn't exist
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"STATS HAVE BEEN GENERATED FOR DATASET {dataset_path}")
-    print(stats)
-    print(f"DONE WITH {model_name}")
-
-    return stats
+    # Save results
+    results_df.to_csv(output_path, index=False)
+    print(f"Results saved to: {output_path}")
 
 
 @click.command()
 @click.option("--dataset-path", help="Dataset CSV file path", required=True)
 @click.option("--model-name", help="Huggingface model name", required=True)
-def benchmark(dataset_path: os.PathLike, model_name: str):
-    benchmark_pretrained(dataset_path=dataset_path, model_name=model_name)
+@click.option("--output-path", help="Path to save results (CSV file)", required=True)
+@click.option("--batch-size", help="Batch size for inference", default=8, type=int)
+def benchmark(
+    dataset_path: os.PathLike,
+    model_name: str,
+    output_path: os.PathLike,
+    batch_size: int,
+):
+    benchmark_pretrained(
+        dataset_path=dataset_path,
+        model_name=model_name,
+        output_path=output_path,
+        batch_size=batch_size,
+    )
 
 
 if __name__ == "__main__":

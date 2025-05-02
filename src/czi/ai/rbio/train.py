@@ -1,6 +1,11 @@
 import os
 import random
+
+
 from typing import List, Optional, Union
+
+
+
 
 import click
 import pandas as pd
@@ -9,12 +14,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
 
-from czi.ai.rbio.model.rewards import (
-    composite_formatting_reward,
-    genes_mentioned_in_think,
-    reward_answer_against_label,
-    reward_gene_similarity_via_vcm,
-)
+from czi.ai.rbio.model.rewards import (composite_formatting_reward,
+                                       genes_mentioned_in_think,
+                                       reward_answer_against_label,
+                                       reward_gene_similarity_via_vcm)
 from czi.ai.rbio.model.verifiers import instantiate_vcm
 
 

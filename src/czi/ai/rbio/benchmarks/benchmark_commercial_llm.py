@@ -1,29 +1,23 @@
 import os
-import re
 import time
+from pathlib import Path
+from typing import Any, Dict, List
 
 import click
 import pandas as pd
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 from tqdm import tqdm
 
-
-def extract_answer(text):
-    found = re.search(r"<answer>\s*(yes|no)\s*</answer>", text, re.IGNORECASE)
-    if found:
-        if found.group(1).strip().lower() == "yes":
-            return True
-        if found.group(1).strip().lower() == "no":
-            return False
-
-    return None
+from czi.ai.rbio.utils.utils import extract_answer
 
 
 def benchmark_commercial_llm(
     dataset_path: os.PathLike,
     llm_model: str,
+    output_path: os.PathLike,
     llm_endpoint: str = os.environ["LLM_ENDPOINT_URL"],
-    llm_api_key: str = os.environ["LLM_ENDPOINT_KEY"],
+    llm_api_key: SecretStr = os.environ["LLM_ENDPOINT_KEY"],
 ):
 
     llm = ChatOpenAI(
@@ -32,52 +26,56 @@ def benchmark_commercial_llm(
 
     dataset = pd.read_csv(dataset_path)
 
-    stats = {
-        "fp": 0,
-        "fn": 0,
-        "tp": 0,
-        "tn": 0,
-        "unanswered": 0,
-    }
+    # Initialize list to store results
+    results: List[Dict[str, Any]] = []
 
-    for index, row in tqdm(dataset.iterrows(), total=dataset.shape[0]):
+    for _, row in tqdm(dataset.iterrows(), total=len(dataset)):
         system_prompt = row["system_prompt"]
         user_prompt = row["user_prompt"]
         label = row["label"]
+        gene_perturbed = row["gene_perturbed"]
+        gene_monitored = row["gene_monitored"]
 
-        messages = [("system", system_prompt), ("human", user_prompt)]
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
 
         while True:
             try:
-                ai_msg = llm.invoke(messages)
+                response = llm.invoke(messages)
                 break
             except:
                 time.sleep(5)
 
-        answer = extract_answer(ai_msg)
+        answer = extract_answer(response)
 
         bool_label = label == 1
 
-        if answer is not None:
-            if answer == True and bool_label == True:
-                stats["tp"] += 1
-            elif answer == True and bool_label == False:
-                stats["fp"] += 1
-            elif answer == False and bool_label == False:
-                stats["tn"] += 1
-            elif answer == False and bool_label == True:
-                stats["fn"] += 1
-        else:
-            stats["unanswered"] += 1
+        # Record result
+        result = {
+            "prompt": f"{system_prompt}\n{user_prompt}",
+            "completion": response,
+            "answer": answer,
+            "binary_answer": 1 if answer is True else (0 if answer is False else -1),
+            "ground_truth": bool_label,
+            "gene_perturbed": gene_perturbed,
+            "gene_monitored": gene_monitored,
+        }
+        results.append(result)
 
-        if int(index) % 100 == 0:
-            print(f"Partial results @ {index}: {stats}")
+    # Convert results to DataFrame
+    results_df = pd.DataFrame(results)
 
-    print(f"STATS HAVE BEEN GENERATED FOR DATASET {dataset_path}")
-    print(stats)
-    print(f"DONE WITH {llm_model}")
+    # Create output directory if it doesn't exist
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    return stats
+    # Save results
+    results_df.to_csv(output_path, index=False)
+    print(f"Results saved to: {output_path}")
+
+    return None
 
 
 @click.command()
@@ -89,14 +87,20 @@ def benchmark_commercial_llm(
     help="The API key to access the LLM via the endpoint",
     required=True,
 )
+@click.option("--output-path", help="Path to save results (CSV file)", required=True)
 def benchmark(
-    dataset_path: os.PathLike, llm_model: str, llm_endpoint: str, llm_api_key: str
+    dataset_path: os.PathLike,
+    llm_model: str,
+    llm_endpoint: str,
+    llm_api_key: str,
+    output_path: os.PathLike,
 ):
     benchmark_commercial_llm(
         dataset_path=dataset_path,
         llm_model=llm_model,
         llm_endpoint=llm_endpoint,
         llm_api_key=llm_api_key,
+        output_path=output_path,
     )
 
 
