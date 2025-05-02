@@ -1,1 +1,1 @@
-D: Does a perturbation of gene {0} in cell line {1} result in changes in gene {2}?
+D: Is a knockdown of {0} in {1} cells likely to result in differential expression of {2}?
