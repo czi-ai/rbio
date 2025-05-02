@@ -29,25 +29,25 @@ def calculate_metrics(
         # Handle case where all predictions are the same
         auc_score = 0.5
 
-        # Calculate additional metrics
-        accuracy = (true_positives + true_negatives) / (
-            true_positives + true_negatives + false_positives + false_negatives
-        )
-        precision = (
-            true_positives / (true_positives + false_positives)
-            if (true_positives + false_positives) > 0
-            else 0
-        )
-        recall = (
-            true_positives / (true_positives + false_negatives)
-            if (true_positives + false_negatives) > 0
-            else 0
-        )
-        f1 = (
-            2 * (precision * recall) / (precision + recall)
-            if (precision + recall) > 0
-            else 0
-        )
+    # Calculate additional metrics
+    accuracy = (true_positives + true_negatives) / (
+        true_positives + true_negatives + false_positives + false_negatives
+    )
+    precision = (
+        true_positives / (true_positives + false_positives)
+        if (true_positives + false_positives) > 0
+        else 0
+    )
+    recall = (
+        true_positives / (true_positives + false_negatives)
+        if (true_positives + false_negatives) > 0
+        else 0
+    )
+    f1 = (
+        2 * (precision * recall) / (precision + recall)
+        if (precision + recall) > 0
+        else 0
+    )
 
     return (
         true_positives,
@@ -95,8 +95,8 @@ def main(results_csv: str, group_by_target: bool) -> None:
         for target in targets:
             # Calculate metrics
             tp, fp, tn, fn, auc, accuracy, precision, recall, f1 = calculate_metrics(
-                all_results[all_results.observed_gene == target]["ground_truth"],
-                all_results[all_results.observed_gene == target]["binary_answer"],
+                all_results[all_results["gene_monitored"] == target]["ground_truth"],
+                all_results[all_results["gene_monitored"] == target]["binary_answer"],
             )
 
             tps.append(tp)
@@ -127,10 +127,10 @@ def main(results_csv: str, group_by_target: bool) -> None:
     # Print results
     print("\nBenchmark Results:")
     print("-----------------")
-    print(f"True Positives (TP): {mean(tps)}")
-    print(f"False Positives (FP): {mean(fps)}")
-    print(f"True Negatives (TN): {mean(tns)}")
-    print(f"False Negatives (FN): {mean(fns)}")
+    print(f"True Positives (TP): {sum(tps)}")
+    print(f"False Positives (FP): {sum(fps)}")
+    print(f"True Negatives (TN): {sum(tns)}")
+    print(f"False Negatives (FN): {sum(fns)}")
     print(f"\nAccuracy: {mean(accuracies):.4f}")
     print(f"Precision: {mean(precisions):.4f}")
     print(f"Recall: {mean(recalls):.4f}")
