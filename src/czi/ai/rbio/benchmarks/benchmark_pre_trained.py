@@ -1,6 +1,4 @@
 import os
-
-
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -12,7 +10,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from czi.ai.rbio.data.datasets import RbioDataset
 from czi.ai.rbio.utils.utils import extract_answer
-
 
 
 def benchmark_pretrained(
