@@ -241,6 +241,8 @@ def create_dataset(
             system_prompt_path,
             user_prompt_path,
         )
+    elif dataset_type == "direction_of_change" or "dir":
+        pass
     else:
         raise NotImplementedError(f"dataset_type {dataset_type} not implemented")
 

@@ -1,1 +1,1 @@
-D: Is a knockdown of {0} in {1} cells likely to result decrease or increase of {2}?
+D: Is a knockdown of {0} in {1} cells likely to result decrease or increase of {2}? The answer is either decrease or increase.
