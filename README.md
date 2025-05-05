@@ -2,6 +2,17 @@
 
 Repository for reasoning-related tasks. 
 
+## :hammer_and_wrench:Set-up
+Do this before anything else - especially to get it to work with Transcriptformer
+```
+1. pip install git+https://github.com/czi-ai/transcriptformer --no-deps
+2. pip install -e .
+```
+To get it to run with accelerate:
+```
+accelerate launch --config-file accelerate_config.yaml src/czi/ai/rbio/train.py
+```
+
 Usage:
 ```
 python train_grpo.py --task=task_name --model-type=model_type --dataset=dataset --reward-type=reward_type
