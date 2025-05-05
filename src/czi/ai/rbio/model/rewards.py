@@ -1,79 +1,49 @@
 import re
 
-from czi.ai.rbio.model.verifiers import (
-    check_math_solution,
-    test_code_solution,
-    test_vcm_task,
-)
+from torch.nn.functional import softmax
+
+from czi.ai.rbio.model.verifiers import call_vcm
+from czi.ai.rbio.utils.utils import extract_answer, extract_think
 
 
-def math_reward_func(prompts, completions, task, **kwargs):
-    """
-    Math reward function. Checks a number of completions in response to a list of math solutions and assigns rewards
+def reward_gene_similarity_via_vcm(
+    gene_perturbed,
+    gene_monitored,
+    completion,
+    task,
+    gene2ensembl_id,
+    vcm_model,
+    gene_vocab,
+):
+    answer = extract_answer(completion)
 
-    Args:
-        prompts: prompts to the model
-        completions: model completions to the prompts, each corresponding to a potential solution to a math equation
-    Returns:
-        rewards: list of rewards accumulated by checking the prompts
-    """
-    rewards = []
-    for prompt, completion, t in zip(prompts, completions, task):
-        if t == "math":
-            # Calculate math-specific reward
-            correct = check_math_solution(prompt, completion)
-            reward = 1.0 if correct else -1.0
-            rewards.append(reward)
-        else:
-            # Return None for non-math tasks
-            rewards.append(None)
-    return rewards
+    if answer is None:
+        return 0
 
+    p_works_vcm = (
+        call_vcm(
+            gene_perturbed, gene_monitored, gene2ensembl_id, vcm_model, gene_vocab, task
+        )
+        .detach()
+        .numpy()
+    )
 
-def coding_reward_func(prompts, completions, task, **kwargs):
-    """
-    Coding reward function. Checks a number of completions in response to a list of coding prompts and assigns rewards
+    reward = (-1.0 * (answer == True) * p_works_vcm) + (
+        1.0 * (answer == False) * p_works_vcm
+    )
 
-    Args:
-        prompts: prompts to the model
-        completions: model completions to the prompts, each corresponding to a potential solution to a coding prompt
-    Returns:
-        rewards: list of rewards accumulated by checking the prompts
-    """
-    rewards = []
-    for prompt, completion, t in zip(prompts, completions, task):
-        if t == "coding":
-            # Calculate coding-specific reward
-            works = test_code_solution(prompt, completion)
-            reward = 1.0 if works else -1.0
-            rewards.append(reward)
-        else:
-            # Return None for non-coding tasks
-            rewards.append(None)
-    return rewards
+    return reward
 
 
-def perturb_reward_func(prompts, completions, task, **kwargs):
-    """
-    Perturbation reward function. Checks a number of completions in response to a list of perturbation prompts and assigns rewards
+def reward_answer_against_label(completion: str, label: bool):
+    answer = extract_answer(completion)
 
-    Args:
-        prompts: prompts to the model
-        completions: model completions to the prompts, each corresponding to a potential solution to a perturbation question
-    Returns:
-        rewards: list of rewards accumulated by checking the prompts
-    """
-    rewards = []
-    for prompt, completion, t in zip(prompts, completions, task):
-        if t == "perturbation":
-            # invoke ML model
-            works = test_vcm_task(prompt, completion, vcm, task)
-            reward = 1.0 if works else -1.0
-            rewards.append(reward)
-        else:
-            # Return None for non-coding tasks
-            rewards.append(None)
-    return rewards
+    if answer is not None:
+        answer_reward = float(answer == label)
+    else:
+        answer_reward = 0
+
+    return answer_reward
 
 
 def has_at_least_one_think(text):
@@ -203,3 +173,68 @@ def composite_formatting_reward(text):
         ends_with_answer(text),
     ]
     return sum(checks) / len(checks)  # normalized score from 0 to 1
+
+
+def reasoning_advantage_reward(
+    model, tokenizer, system_prompt, user_prompt, completion, label
+):
+    answer = extract_answer(completion)
+
+    if answer is not None:
+        if answer:
+            answer = ["yes", " yes", "yes ", " yes "]
+        else:
+            answer = ["no", " no", "no ", " no "]
+
+    else:
+        return 0
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    prompt = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+
+    prompt_with_tt = (
+        prompt + " <think> " + extract_think(completion) + " </think> <answer>"
+    )
+
+    prompt_without_tt = prompt + " <think> </think> <answer>"
+
+    def compute_score(prompt, token_ids):
+        inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=1,
+            return_dict_in_generate=True,
+            output_scores=True,
+            output_logits=True,
+        )
+
+        scores = []
+        for token_id in token_ids:
+
+            probability = softmax(outputs.logits[0][0])[token_id]
+
+            scores.append(probability)
+
+        return max(scores)
+
+    t_ids = tokenizer(answer)["input_ids"]
+
+    token_ids = []
+    for t_id in t_ids:
+        token_ids.extend(t_id)
+
+    score_without_tt = compute_score(prompt_without_tt, token_ids=token_ids)
+
+    score_with_tt = compute_score(prompt_with_tt, token_ids=token_ids)
+
+    reasoning_advantage = score_with_tt - score_without_tt
+
+    if reasoning_advantage > 0:
+        reasoning_advantage = 1.0
+
+    return reasoning_advantage
