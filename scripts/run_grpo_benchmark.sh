@@ -1,17 +1,18 @@
 #!/bin/bash
 
-# Usage: ./run_grpo_benchmark.sh <checkpoint_folder> <model_name>
-# Example: ./run_grpo_benchmark.sh /mnt/czi-sci-ai/project-rbio/checkpoints/PertQA-DE/K562/1_Rewrite/Qwen25-3b-Instruct-NORA-AllData/checkpoint-40000 Qwen/Qwen2.5-3B-Instruct
+# Usage: ./run_grpo_benchmark.sh <checkpoint_folder> <model_name> [batch_size]
+# Example: ./run_grpo_benchmark.sh /mnt/.../checkpoint-40000 Qwen/Qwen2.5-3B-Instruct 512
 
 set -e
 
-if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 <checkpoint_folder> <model_name>"
+if [ "$#" -lt 2 ]; then
+  echo "Usage: $0 <checkpoint_folder> <model_name> [batch_size]"
   exit 1
 fi
 
 CHECKPOINT_PATH="$1"
 MODEL_NAME="$2"
+BATCH_SIZE="${3:-1024}"  # Default to 1024 if not provided
 
 # Normalize model name for filename use (e.g., replace slashes with dashes)
 # Get the model folder name from the checkpoint path (strip checkpoint-xxxxx and get parent dir)
@@ -43,7 +44,7 @@ for DATASET in "${DATASETS[@]}"; do
     --model-name "$MODEL_NAME" \
     --grpo-checkpoint "$CHECKPOINT_PATH" \
     --output-path "$OUTPUT_PATH" \
-    --batch-size 1024
+    --batch-size "$BATCH_SIZE"
 
   echo "Finished dataset: $DATASET"
 done
