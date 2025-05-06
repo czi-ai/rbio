@@ -13,6 +13,10 @@ fi
 CHECKPOINT_PATH="$1"
 MODEL_NAME="$2"
 
+# Normalize model name for filename use (e.g., replace slashes with dashes)
+# Get the model folder name from the checkpoint path (strip checkpoint-xxxxx and get parent dir)
+MODEL_FOLDER_NAME=$(basename "$(dirname "$CHECKPOINT_PATH")")
+
 # Extract step number from checkpoint path, e.g. 'checkpoint-40000' -> 40000
 STEP_NUMBER=$(basename "$CHECKPOINT_PATH" | grep -oP '\d+')
 
@@ -21,8 +25,9 @@ if [ -z "$STEP_NUMBER" ]; then
   exit 1
 fi
 
-# Normalize model name for filename use (e.g., replace slashes with dashes)
-MODEL_NAME_SAFE=$(echo "$MODEL_NAME" | tr '/' '-')
+
+# Extract data subset name from the path (e.g., "All_Data" from ".../PertQA-DE/All_Data/...")
+DATA_SUBSET=$(echo "$CHECKPOINT_PATH" | sed -n 's|.*/PertQA-DE/\([^/]*\)/.*|\1|p')
 
 # Dataset list
 DATASETS=("rpe1" "jurkat" "k562" "hepg2")
@@ -31,7 +36,7 @@ for DATASET in "${DATASETS[@]}"; do
   echo "Running benchmark for dataset: $DATASET"
 
   INPUT_PATH="/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/${DATASET}-test-v0.1.1-no-augmentation.csv"
-  OUTPUT_PATH="/mnt/czi-sci-ai/project-rbio/benchmarks/${MODEL_NAME_SAFE}-NORA-NOLEN-AllData-${STEP_NUMBER}.stats.${DATASET}.csv"
+  OUTPUT_PATH="/mnt/czi-sci-ai/project-rbio/benchmarks/${MODEL_FOLDER_NAME}-${DATA_SUBSET}-${STEP_NUMBER}.stats.${DATASET}.csv"
 
   python -m czi.ai.rbio.benchmarks.benchmark_grpo_trained \
     --dataset-path "$INPUT_PATH" \
