@@ -3,6 +3,7 @@ import random
 from typing import List, Optional, Union
 
 import click
+import mlflow
 import pandas as pd
 from datasets import Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -147,13 +148,18 @@ class Reward:
                 print(f"mention reward: {mention_reward}")
                 print(f"answer reward: {answer_reward}")
                 print(f"reasoning advantage: {reasoning_advantage_reward}")
-
+                
             total_score = (
                 format_reward
                 + 2.0 * answer_reward
                 + mention_reward
                 + reasoning_advantage_reward
             )
+            # mlflow.log_metric("format_reward", format_reward, step=self.count)
+            # mlflow.log_metric("mention_reward", mention_reward, step=self.count)
+            # mlflow.log_metric("answer_reward", answer_reward, step=self.count)
+            # mlflow.log_metric("reasoning_adv_reward", reasoning_advantage_reward, step=self.count)
+            # mlflow.log_metric("total_score", total_score, step=self.count)
 
             scores.append(total_score)
 
@@ -172,11 +178,21 @@ def train_fn(
     num_generations: int = 4,
     verifier_type: str = "hard",
 ):
+    mlflow_run_name = f'{model_name}_{verifier_type}_verifier_{num_generations}_generations_{per_device_train_batch_size}_batch_size'
+    # mlflow.start_run(run_name=mlflow_run_name)
     os.environ["HF_MLFLOW_LOG_ARTIFACTS"] = "false"
     os.environ["MLFLOW_TRACKING_URI"] = (
         "http://mlflow-api.mlflow.svc.cluster.local:5000"
     )
-    os.environ["MLFLOW_EXPERIMENT_NAME"] = "rbio"
+    print(mlflow.get_tracking_uri())
+    os.environ["MLFLOW_EXPERIMENT_NAME"] = "rbio" 
+    # os.environ["MLFLOW_RUN_ID"] = mlflow.get_tracking_uri()
+    # mlflow.pytorch.autolog()
+    # mlflow.log_param("datasets", dataset_path)
+    # mlflow.log_param("model_name", model_name)
+    # mlflow.log_param("verifier_type", verifier_type)
+    # mlflow.log_param("num_generations", num_generations)
+    # mlflow.log_param("batch_size", per_device_train_batch_size)
 
     if hasattr(dataset_path, "__iter__"):
         df_list = []
@@ -202,6 +218,7 @@ def train_fn(
             logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
+            max_steps=10 #this is for testing purposes; needs to be changed for full training
         )
 
     trainer_args.output_dir = str(output_dir)
@@ -218,16 +235,28 @@ def train_fn(
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
-
+# /mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/
 @click.command()
 @click.option(
-    "--dataset-path", help="Dataset CSV file path", required=True, multiple=True
+    "--dataset-path", help="Dataset CSV file path", 
+    required=True, 
+    multiple=True,
+    default=["/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/hepg2-train-v0.1.1-no-augmentation.csv", 
+             "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv", 
+             "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv", 
+             "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv"]
 )
 @click.option(
-    "--model-name", help="The name of the LLM model in huggingface", required=True
+    "--model-name", 
+    help="The name of the LLM model in huggingface", 
+    required=True,
+    default='Qwen/Qwen2.5-3B-Instruct'
 )
 @click.option(
-    "--checkpoint-dir", help="Directory where we save our checkpoints", required=True
+    "--checkpoint-dir", 
+    help="Directory where we save our checkpoints", 
+    required=True,
+    default="/mnt/czi-sci-ai/project-rbio-large/checkpoints/PertQA-DE/All_Data/1_Rewrite/"
 )
 @click.option(
     "--resume",
@@ -236,7 +265,7 @@ def train_fn(
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
-@click.option("--verifier-type", help="type of verifier, hard or soft", default="hard")
+@click.option("--verifier-type", help="type of verifier, hard or soft", default="soft")
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
