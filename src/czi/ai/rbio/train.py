@@ -1,5 +1,6 @@
 import os
 import random
+from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
 import click
@@ -148,7 +149,7 @@ class Reward:
                 print(f"mention reward: {mention_reward}")
                 print(f"answer reward: {answer_reward}")
                 print(f"reasoning advantage: {reasoning_advantage_reward}")
-                
+
             total_score = (
                 format_reward
                 + 2.0 * answer_reward
@@ -168,6 +169,20 @@ class Reward:
         return scores
 
 
+@dataclass
+class RbioGRPOConfig(GRPOConfig):
+    """
+    This class extends GRPOConfig to add some parameters for logging to mlflow.
+    Starting a run with mlflow and logging the parameters using code creates duplicates for every gpu.
+    This is a workaround to avoid that.
+    """
+
+    model_name: Optional[str] = field(default=None)
+    datasets: Optional[List[str]] = field(default=None)
+    verifier_type: Optional[str] = field(default=None)
+    batch_size: Optional[int] = field(default=None)
+
+
 def train_fn(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -178,21 +193,10 @@ def train_fn(
     num_generations: int = 4,
     verifier_type: str = "hard",
 ):
-    mlflow_run_name = f'{model_name}_{verifier_type}_verifier_{num_generations}_generations_{per_device_train_batch_size}_batch_size'
-    # mlflow.start_run(run_name=mlflow_run_name)
-    os.environ["HF_MLFLOW_LOG_ARTIFACTS"] = "false"
-    os.environ["MLFLOW_TRACKING_URI"] = (
-        "http://mlflow-api.mlflow.svc.cluster.local:5000"
+    mlflow_run_name = os.environ.get(
+        "MLFLOW_RUN_NAME",
+        f"{model_name}_{verifier_type}_verifier_{num_generations}_generations_{per_device_train_batch_size}_batch_size",
     )
-    print(mlflow.get_tracking_uri())
-    os.environ["MLFLOW_EXPERIMENT_NAME"] = "rbio" 
-    # os.environ["MLFLOW_RUN_ID"] = mlflow.get_tracking_uri()
-    # mlflow.pytorch.autolog()
-    # mlflow.log_param("datasets", dataset_path)
-    # mlflow.log_param("model_name", model_name)
-    # mlflow.log_param("verifier_type", verifier_type)
-    # mlflow.log_param("num_generations", num_generations)
-    # mlflow.log_param("batch_size", per_device_train_batch_size)
 
     if hasattr(dataset_path, "__iter__"):
         df_list = []
@@ -205,20 +209,25 @@ def train_fn(
         df = pd.read_csv(dataset_path)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto")
 
     dataset = Dataset.from_generator(
         dataset_gen, gen_kwargs={"dataset": df, "tokenizer": tokenizer}
     )
 
     if trainer_args is None:
-        trainer_args = GRPOConfig(
+        trainer_args = RbioGRPOConfig(
             output_dir=str(output_dir),
             logging_steps=250,
             logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
-            max_steps=10 #this is for testing purposes; needs to be changed for full training
+            max_steps=10,  # this is for testing purposes; needs to be changed for full training
+            run_name=mlflow_run_name,
+            datasets=dataset_path,
+            model_name=model_name,
+            verifier_type=verifier_type,
+            batch_size=per_device_train_batch_size,
         )
 
     trainer_args.output_dir = str(output_dir)
@@ -230,33 +239,36 @@ def train_fn(
         reward_funcs=reward.compute_reward,
         args=trainer_args,
         train_dataset=dataset,
-        callbacks=[MLflowCallback()],
     )
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
+
 # /mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/
 @click.command()
 @click.option(
-    "--dataset-path", help="Dataset CSV file path", 
-    required=True, 
+    "--dataset-path",
+    help="Dataset CSV file path",
+    required=True,
     multiple=True,
-    default=["/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/hepg2-train-v0.1.1-no-augmentation.csv", 
-             "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv", 
-             "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv", 
-             "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv"]
+    default=[
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/hepg2-train-v0.1.1-no-augmentation.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv",
+    ],
 )
 @click.option(
-    "--model-name", 
-    help="The name of the LLM model in huggingface", 
+    "--model-name",
+    help="The name of the LLM model in huggingface",
     required=True,
-    default='Qwen/Qwen2.5-3B-Instruct'
+    default="Qwen/Qwen2.5-3B-Instruct",
 )
 @click.option(
-    "--checkpoint-dir", 
-    help="Directory where we save our checkpoints", 
+    "--checkpoint-dir",
+    help="Directory where we save our checkpoints",
     required=True,
-    default="/mnt/czi-sci-ai/project-rbio-large/checkpoints/PertQA-DE/All_Data/1_Rewrite/"
+    default="/mnt/czi-sci-ai/project-rbio-large/checkpoints/PertQA-DE/All_Data/1_Rewrite/",
 )
 @click.option(
     "--resume",
