@@ -1,5 +1,7 @@
 import os
+from typing import Union, List, Tuple
 
+import click
 import numpy as np
 import pandas as pd
 import torch
@@ -157,7 +159,10 @@ def test_model(
 
 
 def one_hot_gene_perturbation(
-    training_set_path: os.PathLike, test_set_path: os.PathLike
+    training_set_path: os.PathLike,
+    test_set_path: os.PathLike,
+    batch_size: int = 32,
+    num_epochs: int = 10,
 ) -> dict:
     df_training = pd.read_csv(training_set_path)
     df_testing = pd.read_csv(test_set_path)
@@ -183,8 +188,43 @@ def one_hot_gene_perturbation(
     }
 
     # Train the model
-    model = train_model(df_training, name_to_embedding)
+    model = train_model(
+        df_training, name_to_embedding, batch_size=batch_size, num_epochs=num_epochs
+    )
 
-    metrics = test_model(model, df_testing, name_to_embedding)
+    metrics = test_model(model, df_testing, name_to_embedding, batch_size=batch_size)
 
     return metrics
+
+
+@click.command()
+@click.option(
+    "--train-dataset-path", help="Dataset CSV file path", required=True, multiple=False
+)
+@click.option(
+    "--test-dataset-path", help="Dataset CSV file path", required=True, multiple=False
+)
+@click.option(
+    "--strategy",
+    help="Whether we should use 1-hot-encoded gene representation or gene embeddings",
+    required=True,
+)
+@click.option("--batch-size", help="Batch-size", default=4)
+@click.option("--num-epochs", help="Number of epochs", default=10)
+def train(
+    train_dataset_path: os.PathLike,
+    test_dataset_path: os.PathLike,
+    strategy: str,
+    batch_size: int,
+    num_epochs: int,
+):
+    if strategy == "1-hot":
+        one_hot_gene_perturbation(
+            train_dataset_path, test_dataset_path, batch_size, num_epochs
+        )
+    else:
+        raise NotImplementedError(f"Strategy {strategy} not implemented")
+
+
+if __name__ == "__main__":
+    train()
