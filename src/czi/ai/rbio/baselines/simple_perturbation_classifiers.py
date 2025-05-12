@@ -1,6 +1,6 @@
 import os
 import random
-from typing import Union, List, Tuple
+from typing import List, Tuple, Union
 
 import click
 import numpy as np
