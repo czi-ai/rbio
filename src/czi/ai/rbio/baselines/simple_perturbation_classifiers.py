@@ -1,4 +1,5 @@
 import os
+import random
 from typing import Union, List, Tuple
 
 import click
@@ -15,6 +16,15 @@ from sklearn.metrics import (
 )
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+
+
+def set_seed(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if using multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 class MLPClassifier(nn.Module):
@@ -218,6 +228,8 @@ def train(
     batch_size: int,
     num_epochs: int,
 ):
+    set_seed(42)
+
     if strategy == "1-hot":
         one_hot_gene_perturbation(
             train_dataset_path, test_dataset_path, batch_size, num_epochs
