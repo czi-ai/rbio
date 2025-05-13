@@ -1,5 +1,6 @@
 import re
 
+import requests
 from torch.nn.functional import softmax
 
 from czi.ai.rbio.model.verifiers import call_vcm
@@ -44,6 +45,28 @@ def reward_answer_against_label(completion: str, label: bool):
         answer_reward = 0
 
     return answer_reward
+
+
+def reward_answer_against_softverifier(
+    completion: str, gene_perturbed: str, gene_monitored: str
+) -> float:
+    answer = extract_answer(completion)
+
+    try:
+        response = requests.post(
+            "http://localhost:5000/perturbation",
+            json={"Gene_A": gene_perturbed, "Gene_B": gene_monitored},
+            timeout=5.0,
+        )
+        response.raise_for_status()
+        prob = response.json()["perturbation_probability"]
+    except Exception as e:
+        print(f"Request to soft verifier failed: {e}")
+        return 0.0  # conservative fallback
+
+    reward = prob if answer else 1.0 - prob
+
+    return reward
 
 
 def has_at_least_one_think(text):
