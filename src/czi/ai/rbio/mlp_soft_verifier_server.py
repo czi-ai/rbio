@@ -1,7 +1,8 @@
 import os
 import pickle
+
 import torch
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 from torch import nn
 
 app = Flask(__name__)
