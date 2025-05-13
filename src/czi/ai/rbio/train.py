@@ -81,10 +81,32 @@ class Reward:
         self.vcm_gene_vocab = None
         self.gene2ensembl_id = None
 
+        # Placeholder for MLflow instance from trainer instance of MLFlowCallback
+        self._ml_flow = None
+
     def init_vcm_model(self):
         self.vcm_model, self.vcm_gene_vocab, self.gene2ensembl_id = instantiate_vcm(
             self.vcm_verifier_type
         )
+
+    def set_mlflow(self, trainer: GRPOTrainer):
+        """
+        Use the same MLFlow instance as the callback used by the trainer.
+        """
+        mlflow_callbacks = [
+            callback for callback in trainer.callback_handler.callbacks
+            if isinstance(callback, MLflowCallback)
+        ]
+        if mlflow_callbacks:
+            self._ml_flow = mlflow_callbacks[0]._ml_flow
+        else:
+            raise RuntimeError("Could not find MLflow callback in trainer")
+
+    def log_metrics(self, metrics: dict[str, float]):
+        if self._ml_flow:
+            self._ml_flow.log_metrics(metrics, step=self.count)
+        else:
+            raise RuntimeError("MLflow instance not set. Please call set_mlflow() first")
 
     def compute_reward(
         self,
@@ -156,11 +178,15 @@ class Reward:
                 + mention_reward
                 + reasoning_advantage_reward
             )
-            # mlflow.log_metric("format_reward", format_reward, step=self.count)
-            # mlflow.log_metric("mention_reward", mention_reward, step=self.count)
-            # mlflow.log_metric("answer_reward", answer_reward, step=self.count)
-            # mlflow.log_metric("reasoning_adv_reward", reasoning_advantage_reward, step=self.count)
-            # mlflow.log_metric("total_score", total_score, step=self.count)
+
+            metrics = {
+                "format_reward": format_reward,
+                "mention_reward": mention_reward,
+                "answer_reward": answer_reward,
+                "reasoning_adv_reward": reasoning_advantage_reward,
+                "total_score": total_score,
+            }
+            self.log_metrics(metrics)
 
             scores.append(total_score)
 
@@ -240,6 +266,8 @@ def train_fn(
         args=trainer_args,
         train_dataset=dataset,
     )
+
+    reward.set_mlflow(trainer)
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
