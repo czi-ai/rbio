@@ -137,6 +137,7 @@ class Reward:
                         vcm_model=self.vcm_model,
                         gene_vocab=self.vcm_gene_vocab,
                     )
+                
 
             if self.count % 10 == 0:
                 print(f"system prompt: {sys_p}")
@@ -156,11 +157,11 @@ class Reward:
                 + mention_reward
                 + reasoning_advantage_reward
             )
-            # mlflow.log_metric("format_reward", format_reward, step=self.count)
-            # mlflow.log_metric("mention_reward", mention_reward, step=self.count)
-            # mlflow.log_metric("answer_reward", answer_reward, step=self.count)
-            # mlflow.log_metric("reasoning_adv_reward", reasoning_advantage_reward, step=self.count)
-            # mlflow.log_metric("total_score", total_score, step=self.count)
+            mlflow.log_metric("format_reward", format_reward, step=self.count)
+            mlflow.log_metric("mention_reward", mention_reward, step=self.count)
+            mlflow.log_metric("answer_reward", answer_reward, step=self.count)
+            mlflow.log_metric("reasoning_adv_reward", reasoning_advantage_reward, step=self.count)
+            mlflow.log_metric("total_score", total_score, step=self.count)
 
             scores.append(total_score)
 
@@ -222,7 +223,7 @@ def train_fn(
             logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
-            max_steps=10,  # this is for testing purposes; needs to be changed for full training
+            max_steps=100,  # this is for testing purposes; needs to be changed for full training
             run_name=mlflow_run_name,
             datasets=dataset_path,
             model_name=model_name,
