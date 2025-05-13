@@ -168,7 +168,7 @@ def test_model(
                     {
                         "prompt": "",
                         "completion": "",
-                        "answer": "",
+                        "answer": pred,
                         "binary_answer": int(pred),
                         "ground_truth": int(gt),
                         "gene_perturbed": test_df.iloc[idx]["gene_perturbed"],

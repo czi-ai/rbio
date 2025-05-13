@@ -12,7 +12,9 @@ from sklearn.metrics import (
 )
 
 
-def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+def compute_metrics(
+    y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray | None = None
+) -> Dict[str, float]:
     # Confusion matrix (labels must be [0, 1] for consistent order)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
 
@@ -22,8 +24,12 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
     recall = recall_score(y_true, y_pred, zero_division=0)
     f1 = f1_score(y_true, y_pred, zero_division=0)
 
+    # AUC with probabilities (if available), otherwise use binary
     try:
-        auc = roc_auc_score(y_true, y_pred)
+        if y_prob is not None:
+            auc = roc_auc_score(y_true, y_prob)
+        else:
+            auc = roc_auc_score(y_true, y_pred)
     except ValueError:
         auc = float("nan")
 
@@ -56,8 +62,15 @@ def main(results_csv: str, group_by_target: bool) -> None:
     all_results = pd.read_csv(results_csv)
     all_results = all_results[all_results["binary_answer"] != -1]
 
+    # Ensure answer column is numeric if present
+    if "answer" in all_results.columns:
+        all_results["answer"] = pd.to_numeric(all_results["answer"], errors="coerce")
+
     y_true_all = all_results["ground_truth"].values
     y_pred_all = all_results["binary_answer"].values
+    y_prob_all = (
+        all_results["answer"].values if "answer" in all_results.columns else None
+    )
 
     metrics_list = []
 
@@ -66,20 +79,23 @@ def main(results_csv: str, group_by_target: bool) -> None:
             y_true = group["ground_truth"].values
             y_pred = group["binary_answer"].values
 
-            # Skip degenerate groups
-            if len(np.unique(y_true)) < 2:
-                continue
+            # Attempt to get numeric probabilities
+            if "answer" in group.columns:
+                y_prob = pd.to_numeric(group["answer"], errors="coerce").values
+            else:
+                y_prob = None
 
-            metrics = compute_metrics(y_true, y_pred)
+            if len(np.unique(y_true)) < 2:
+                continue  # skip degenerate groups
+
+            metrics = compute_metrics(y_true, y_pred, y_prob)
             metrics_list.append(metrics)
     else:
-        metrics = compute_metrics(y_true_all, y_pred_all)
+        metrics = compute_metrics(y_true_all, y_pred_all, y_prob_all)
         metrics_list.append(metrics)
 
-    # Average metrics across groups if grouped
     avg_metrics = {k: np.nanmean([m[k] for m in metrics_list]) for k in metrics_list[0]}
 
-    # Print metrics
     print("\nBenchmark Results:")
     print("-----------------")
     print(f"TP: {int(np.nansum([m['TP'] for m in metrics_list]))}")
