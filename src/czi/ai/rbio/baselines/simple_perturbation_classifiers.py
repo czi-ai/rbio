@@ -1,9 +1,9 @@
 import os
+import pickle
 import random
 from typing import Tuple
 
 import click
-import pickle
 import numpy as np
 import pandas as pd
 import torch
