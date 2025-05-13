@@ -5,3 +5,5 @@
 .DS_Store
 .cursor/*
 .vscode/*
+__pycache__
+mlruns/
