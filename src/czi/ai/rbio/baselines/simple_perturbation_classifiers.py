@@ -1,8 +1,9 @@
 import os
 import random
-from typing import List, Tuple, Union
+from typing import Tuple
 
 import click
+import pickle
 import numpy as np
 import pandas as pd
 import torch
@@ -15,7 +16,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, Sampler
 
 
 def set_seed(seed: int = 42):
@@ -41,8 +42,12 @@ class MLPClassifier(nn.Module):
 # Custom dataset
 class GeneDataset(Dataset):
     def __init__(self, df: pd.DataFrame, name_to_embedding: dict):
-        self.df = df
+        self.df = df.reset_index(drop=True)
         self.name_to_embedding = name_to_embedding
+
+        # Indexes for positive and negative samples
+        self.pos_indices = self.df[self.df["label"] == 1].index.tolist()
+        self.neg_indices = self.df[self.df["label"] == 0].index.tolist()
 
     def __len__(self) -> int:
         return len(self.df)
@@ -59,6 +64,32 @@ class GeneDataset(Dataset):
         return gene_pert, gene_mon, label
 
 
+class BalancedBatchSampler(Sampler):
+    def __init__(self, pos_indices, neg_indices, batch_size):
+        super().__init__()
+        assert batch_size % 2 == 0, "Batch size must be even for balanced sampling"
+        self.pos_indices = pos_indices
+        self.neg_indices = neg_indices
+        self.batch_size = batch_size
+        self.half_batch = batch_size // 2
+
+    def __iter__(self) -> list:
+        pos_pool = random.sample(self.pos_indices, len(self.pos_indices))
+        neg_pool = random.sample(self.neg_indices, len(self.neg_indices))
+        min_len = min(len(pos_pool), len(neg_pool))
+
+        for i in range(0, min_len, self.half_batch):
+            pos_batch = pos_pool[i : i + self.half_batch]
+            neg_batch = neg_pool[i : i + self.half_batch]
+            if len(pos_batch) == self.half_batch and len(neg_batch) == self.half_batch:
+                batch = pos_batch + neg_batch
+                random.shuffle(batch)
+                yield batch
+
+    def __len__(self) -> int:
+        return min(len(self.pos_indices), len(self.neg_indices)) // self.half_batch
+
+
 def train_model(
     train_df: pd.DataFrame,
     name_to_embedding: dict,
@@ -69,7 +100,10 @@ def train_model(
 ) -> nn.Module:
     # Dataset and loader
     train_dataset = GeneDataset(train_df, name_to_embedding)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    sampler = BalancedBatchSampler(
+        train_dataset.pos_indices, train_dataset.neg_indices, batch_size
+    )
+    train_loader = DataLoader(train_dataset, batch_sampler=sampler)
 
     input_dim = len(
         next(iter(name_to_embedding.values()))
@@ -98,7 +132,7 @@ def train_model(
             total_loss += loss.item() * gene_pert.size(0)
 
         avg_loss = total_loss / len(train_loader.dataset)
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}")
+        print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.4f}")
 
     return model
 
@@ -107,65 +141,45 @@ def test_model(
     model: nn.Module,
     test_df: pd.DataFrame,
     name_to_embedding: dict,
+    output_csv: os.PathLike,
     batch_size: int = 32,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
-) -> dict:
+) -> None:
     test_dataset = GeneDataset(test_df, name_to_embedding)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     model.eval()
-    all_preds = []
-    all_probs = []
-    all_labels = []
+    results = []
+    idx = 0  # Track index in test_df to match gene names
 
     with torch.no_grad():
         for gene_pert, gene_mon, label in test_loader:
             gene_pert = gene_pert.to(device)
             gene_mon = gene_mon.to(device)
-            label = label.to(device).unsqueeze(1)
+            label = label.cpu().numpy().flatten()
 
             inputs = torch.cat([gene_pert, gene_mon], dim=1)
             logits = model(inputs)
-            probs = torch.sigmoid(logits)
+            probs = torch.sigmoid(logits).cpu().numpy().flatten()
+            preds = (probs > 0.5).astype(int)
 
-            all_probs.extend(probs.cpu().numpy().flatten())
-            all_preds.extend((probs > 0.5).int().cpu().numpy().flatten())
-            all_labels.extend(label.cpu().numpy().flatten())
+            for gt, pred in zip(label, preds):
+                results.append(
+                    {
+                        "prompt": "",
+                        "completion": "",
+                        "answer": "",
+                        "binary_answer": int(pred),
+                        "ground_truth": int(gt),
+                        "gene_perturbed": test_df.iloc[idx]["gene_perturbed"],
+                        "gene_monitored": test_df.iloc[idx]["gene_monitored"],
+                    }
+                )
+                idx += 1
 
-    # Convert to numpy arrays
-    y_true = np.array(all_labels)
-    y_pred = np.array(all_preds)
-    y_prob = np.array(all_probs)
-
-    # Confusion matrix
-    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
-
-    # Metrics
-    accuracy = accuracy_score(y_true, y_pred)
-    precision = precision_score(y_true, y_pred, zero_division=0)
-    recall = recall_score(y_true, y_pred, zero_division=0)
-    f1 = f1_score(y_true, y_pred, zero_division=0)
-    try:
-        auc = roc_auc_score(y_true, y_prob)
-    except ValueError:
-        auc = float("nan")
-
-    metrics = {
-        "TP": int(tp),
-        "FP": int(fp),
-        "TN": int(tn),
-        "FN": int(fn),
-        "Accuracy": accuracy,
-        "Precision": precision,
-        "Recall": recall,
-        "F1-score": f1,
-        "AUC ROC": auc,
-    }
-
-    for key, val in metrics.items():
-        print(f"{key}: {val:.4f}" if isinstance(val, float) else f"{key}: {val}")
-
-    return metrics
+    df_results = pd.DataFrame(results)
+    df_results.to_csv(output_csv, index=False)
+    print(f"\nPrediction CSV saved to: {output_csv}")
 
 
 def one_hot_gene_perturbation(
@@ -173,7 +187,8 @@ def one_hot_gene_perturbation(
     test_set_path: os.PathLike,
     batch_size: int = 32,
     num_epochs: int = 10,
-) -> dict:
+    output_csv_path: os.PathLike = "./results.csv",
+) -> None:
     df_training = pd.read_csv(training_set_path)
     df_testing = pd.read_csv(test_set_path)
 
@@ -202,9 +217,75 @@ def one_hot_gene_perturbation(
         df_training, name_to_embedding, batch_size=batch_size, num_epochs=num_epochs
     )
 
-    metrics = test_model(model, df_testing, name_to_embedding, batch_size=batch_size)
+    test_model(
+        model,
+        df_testing,
+        name_to_embedding,
+        output_csv=output_csv_path,
+        batch_size=batch_size,
+    )
 
-    return metrics
+    print(f"Saved results to {output_csv_path}")
+
+
+def embedding_gene_perturbation(
+    training_set_path: os.PathLike,
+    test_set_path: os.PathLike,
+    emb_dict: dict,
+    batch_size: int = 32,
+    num_epochs: int = 10,
+    output_csv_path: os.PathLike = "./results.csv",
+):
+    df_training = pd.read_csv(training_set_path)
+    df_testing = pd.read_csv(test_set_path)
+
+    # Collect all unique gene names from both gene_perturbed and gene_monitored columns
+    genes_train = pd.unique(
+        df_training[["gene_perturbed", "gene_monitored"]].values.ravel()
+    )
+    genes_test = pd.unique(
+        df_testing[["gene_perturbed", "gene_monitored"]].values.ravel()
+    )
+
+    all_genes = sorted(
+        set(genes_train).union(set(genes_test))
+    )  # ensure deterministic ordering
+    print(f"Found {len(all_genes)} unique gene names across training and testing sets.")
+
+    # Build 1-hot encoding dictionary
+    gene_to_index = {gene: i for i, gene in enumerate(all_genes)}
+
+    name_to_embedding = {}
+    missing = 0
+
+    for gene, idx in gene_to_index.items():
+        try:
+            name_to_embedding[gene] = np.asarray(
+                emb_dict[gene.lower()], dtype=np.float32
+            )
+        except KeyError:
+            missing += 1
+            print(
+                f"WARNING: the embedding for gene {gene} is not in the dict, total missing {missing}"
+            )
+            first_emb_dict = np.asarray(emb_dict[list(emb_dict.keys())[0]])
+            rand_embedding = np.random.randn(first_emb_dict.shape[0]).astype(np.float32)
+            name_to_embedding[gene] = rand_embedding
+
+    # Train the model
+    model = train_model(
+        df_training, name_to_embedding, batch_size=batch_size, num_epochs=num_epochs
+    )
+
+    test_model(
+        model,
+        df_testing,
+        name_to_embedding,
+        output_csv=output_csv_path,
+        batch_size=batch_size,
+    )
+
+    print(f"Saved results to {output_csv_path}")
 
 
 @click.command()
@@ -219,23 +300,41 @@ def one_hot_gene_perturbation(
     help="Whether we should use 1-hot-encoded gene representation or gene embeddings",
     required=True,
 )
-@click.option("--batch-size", help="Batch-size", default=4)
+@click.option("--batch-size", help="Batch-size", default=32)
 @click.option("--num-epochs", help="Number of epochs", default=10)
+@click.option("--embedding-file", help="Embedding file", default=None)
+@click.option("--output-csv-path", help="Output CSV file path", required=True)
 def train(
     train_dataset_path: os.PathLike,
     test_dataset_path: os.PathLike,
     strategy: str,
     batch_size: int,
     num_epochs: int,
+    embedding_file: os.PathLike,
+    output_csv_path: os.PathLike,
 ):
     set_seed(42)
 
     if strategy == "1-hot":
         one_hot_gene_perturbation(
-            train_dataset_path, test_dataset_path, batch_size, num_epochs
+            train_dataset_path,
+            test_dataset_path,
+            batch_size,
+            num_epochs,
+            output_csv_path,
         )
     else:
-        raise NotImplementedError(f"Strategy {strategy} not implemented")
+        with open(embedding_file, "rb") as f:
+            emb_dict = pickle.load(f)
+
+        embedding_gene_perturbation(
+            train_dataset_path,
+            test_dataset_path,
+            emb_dict,
+            batch_size,
+            num_epochs,
+            output_csv_path,
+        )
 
 
 if __name__ == "__main__":
