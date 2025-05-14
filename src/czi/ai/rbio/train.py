@@ -94,7 +94,8 @@ class Reward:
         Use the same MLFlow instance as the callback used by the trainer.
         """
         mlflow_callbacks = [
-            callback for callback in trainer.callback_handler.callbacks
+            callback
+            for callback in trainer.callback_handler.callbacks
             if isinstance(callback, MLflowCallback)
         ]
         if mlflow_callbacks:
@@ -106,7 +107,9 @@ class Reward:
         if self._ml_flow:
             self._ml_flow.log_metrics(metrics, step=self.count)
         else:
-            raise RuntimeError("MLflow instance not set. Please call set_mlflow() first")
+            raise RuntimeError(
+                "MLflow instance not set. Please call set_mlflow() first"
+            )
 
     def compute_reward(
         self,
