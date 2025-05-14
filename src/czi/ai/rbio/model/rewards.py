@@ -61,13 +61,16 @@ def reward_answer_against_label(completion: str, label: bool):
 def has_at_least_one_think(text):
     return 1 if re.search(r"<think>.*?</think>", text, re.DOTALL) else 0
 
+def has_at_least_one_gene_info(text):
+    return 1 if re.search(r"<gene_info>.*?</gene_info>", text, re.DOTALL) else 0
+
 
 def low_untagged_ratio(text):
-    text_no_tags = re.sub(r"</?(think|answer)>", "", text)
+    text_no_tags = re.sub(r"</?(think|answer|gene_info)>", "", text)
     total_words = len(re.findall(r"\b\w+\b", text_no_tags))
 
     tagged_words = 0
-    for tag in re.findall(r"<(think|answer)>(.*?)</\1>", text, re.DOTALL):
+    for tag in re.findall(r"<(think|answer|gene_info)>(.*?)</\1>", text, re.DOTALL):
         tagged_words += len(re.findall(r"\b\w+\b", tag[1]))
     ratio = tagged_words / total_words if total_words else 0
 
@@ -98,6 +101,16 @@ def answer_after_thinks(text):
     last_think_end = think_tags[-1].end()
     return 1 if answer_match.start() > last_think_end else 0
 
+def gene_info_inside_think(text):
+    think_tags = list(re.finditer(r"</think>", text))
+    gene_info_match = re.search(r"</gene_info>", text)
+    if not gene_info_match:
+        return 0
+    if not think_tags:
+        return 0
+    last_think_end = think_tags[-1].end()
+    return 1 if gene_info_match.start() < last_think_end else 0
+
 
 def thinks_have_text(text):
     return (
@@ -105,6 +118,16 @@ def thinks_have_text(text):
         if all(
             re.search(r"\S", match)
             for match in re.findall(r"<think>(.*?)</think>", text, re.DOTALL)
+        )
+        else 0
+    )
+
+def gene_infos_have_text(text):
+    return (
+        1
+        if all(
+            re.search(r"\S", match)
+            for match in re.findall(r"<gene_info>(.*?)</gene_info>", text, re.DOTALL)
         )
         else 0
     )
@@ -137,11 +160,11 @@ def no_nested_tags(text):
 
 def all_tags_properly_closed(text):
     tag_stack = []
-    tag_pattern = re.finditer(r"</?(think|answer)>", text)
+    tag_pattern = re.finditer(r"</?(think|answer|gene_info)>", text)
 
     for tag in tag_pattern:
         tag_text = tag.group()
-        tag_type = re.match(r"</?(think|answer)>", tag_text).group(1)
+        tag_type = re.match(r"</?(think|answer|gene_info)>", tag_text).group(1)
 
         if tag_text.startswith("</"):
             # closing tag
@@ -165,18 +188,22 @@ def ends_with_answer(text):
 
 
 def has_any_tag(text):
-    return 1 if re.search(r"</?(think|answer)>", text) else 0
+    return 1 if re.search(r"</?(think|answer|gene_info)>", text) else 0
 
 
 def composite_formatting_reward(text):
     at_least_one_think = has_at_least_one_think(text)
+    at_least_one_gene_info = has_at_least_one_gene_info(text)
     has_tags = has_any_tag(text)
     checks = [
         at_least_one_think,
+        at_least_one_gene_info,
         low_untagged_ratio(text),
         is_not_too_long(text),
         has_one_answer(text),
         answer_after_thinks(text),
+        gene_info_inside_think(text),
+        gene_infos_have_text(text),
         thinks_have_text(text) * at_least_one_think,
         no_nested_tags(text) * has_tags,
         has_limited_thinks(text) * at_least_one_think,
