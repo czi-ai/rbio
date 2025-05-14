@@ -14,12 +14,16 @@ from trl import GRPOConfig, GRPOTrainer
 
 from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
+    has_cellular_component,
+    has_localizes_mention,
     genes_mentioned_in_think,
     reward_answer_against_label,
     reward_gene_similarity_via_vcm,
-    reward_gene_information_go_ontology
+    reward_gene_information_go_ontology_mention,
+    reward_gene_information_go_ontology_rouge_score,
+    reward_go_info_llh
 )
-from czi.ai.rbio.model.verifiers import instantiate_vcm, instantiate_go_ontologies
+from czi.ai.rbio.model.verifiers import instantiate_vcm, instantiate_go_ontologies, instantiate_rouge_scorer
 
 
 def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
@@ -96,6 +100,7 @@ class Reward:
         
     def init_go_ontologies(self):
         self.gene2go_annotations = instantiate_go_ontologies(self.go_ontology_type)
+        self.rouge_scorer = instantiate_rouge_scorer()
         # print('Annotations dict', self.gene2go_annotations)
 
     def compute_reward(
@@ -123,6 +128,10 @@ class Reward:
             format_reward = composite_formatting_reward(completion)
 
             mention_reward = genes_mentioned_in_think(completion, gp, gm)
+            
+            has_cellular_component_reward = has_cellular_component(completion)
+        
+            has_localizes_mention_reward = has_localizes_mention(completion)
 
             # reasoning_advantage_reward = compute_reasoning_advantage(
             #    self.model, self.tokenizer, sys_p, usr_p, completion, label
@@ -153,9 +162,15 @@ class Reward:
                     # print('Made it here!')
                     if self.gene2go_annotations is None:
                         self.init_go_ontologies() 
-                    go_ontology_reward_gene_perturbed_discrete = reward_gene_information_go_ontology(gp, completion, self.gene2go_annotations)
-                    go_ontology_reward_gene_monitored_discrete = reward_gene_information_go_ontology(gm, completion, self.gene2go_annotations)
+
+                    go_reward_gp_discrete = reward_gene_information_go_ontology_mention(gp, completion, self.gene2go_annotations)
+                    go_reward_gm_discrete = reward_gene_information_go_ontology_mention(gm, completion, self.gene2go_annotations)
+                    
+                    go_reward_gp_rouge1, go_reward_gp_rouge2, go_reward_gp_rougel = reward_gene_information_go_ontology_rouge_score(gp, completion, self.gene2go_annotations, self.rouge_scorer)
+                    go_reward_gm_rouge1, go_reward_gm_rouge2, go_reward_gm_rougel = reward_gene_information_go_ontology_rouge_score(gm, completion, self.gene2go_annotations, self.rouge_scorer)
                     answer_reward = 0.0
+                    go_info_llh_gp = reward_go_info_llh(gp, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
+                    go_info_llh_gm = reward_go_info_llh(gm, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
                 
 
             if self.count % 10 == 0:
@@ -167,18 +182,32 @@ class Reward:
                 print(f"gene monitored: {gm}")
                 print(f"format reward: {format_reward}")
                 print(f"mention reward: {mention_reward}")
-                print(f"gene perturbed go ontology reward: {go_ontology_reward_gene_perturbed_discrete}")
-                print(f"gene monitored go ontology reward: {go_ontology_reward_gene_monitored_discrete}")
+                print(f"gene perturbed go ontology reward: {go_reward_gp_discrete}")
+                print(f"gene monitored go ontology reward: {go_reward_gm_discrete}")
+                print(f"gene perturbed go ontology reward_rouge_scores: {go_reward_gp_rouge1, go_reward_gp_rouge2, go_reward_gp_rougel}")
+                print(f"gene monitored go ontology reward_rouge_scores: {go_reward_gm_rouge1, go_reward_gm_rouge2, go_reward_gm_rougel}")
                 print(f"answer reward: {answer_reward}")
                 print(f"reasoning advantage: {reasoning_advantage_reward}")
+                print(f"has cellular component reward {has_cellular_component_reward}")
+                print(f"has_localizes_mention_reward {has_localizes_mention_reward}")
+                print(f"GO Info LLH GP {go_info_llh_gp}")
+                print(f"GO Info LLH GM {go_info_llh_gm}")
+                      
 
             total_score = (
                 format_reward
                 + 2.0 * answer_reward
                 + mention_reward
                 + reasoning_advantage_reward
-                + go_ontology_reward_gene_perturbed_discrete
-                + go_ontology_reward_gene_monitored_discrete
+                + go_reward_gp_discrete
+                + go_reward_gm_discrete
+                + go_reward_gp_rouge1 + go_reward_gp_rouge2 + go_reward_gp_rougel
+                + go_reward_gm_rouge1 + go_reward_gm_rouge2 + go_reward_gm_rougel
+                + has_cellular_component_reward 
+                + has_localizes_mention_reward
+                + go_info_llh_gp
+                + go_info_llh_gm
+
             )
             # mlflow.log_metric("format_reward", format_reward, step=self.count)
             # mlflow.log_metric("mention_reward", mention_reward, step=self.count)
@@ -248,7 +277,7 @@ def train_fn(
             logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
-            max_steps=10000,  # this is for testing purposes; needs to be changed for full training
+            max_steps=3,  # this is for testing purposes; needs to be changed for full training
             run_name=mlflow_run_name,
             datasets=dataset_path,
             model_name=model_name,
@@ -278,10 +307,10 @@ def train_fn(
     required=True,
     multiple=True,
     default=[
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/hepg2-train-v0.1.2-go_ontology.csv",
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/jurkat-train-v0.1.2-go_ontology.csv",
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/k562-train-v0.1.2-go_ontology.csv",
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/rpe1-train-v0.1.2-go_ontology.csv",
+        "/mnt/czi-sci-ai/project-rbio-large/datasets/hepg2-train-v0.1.6-go_ontology.csv",
+        "/mnt/czi-sci-ai/project-rbio-large/datasets/jurkat-train-v0.1.6-go_ontology.csv",
+        "/mnt/czi-sci-ai/project-rbio-large/datasets/k562-train-v0.1.6-go_ontology.csv",
+        "/mnt/czi-sci-ai/project-rbio-large/datasets/rpe1-train-v0.1.6-go_ontology.csv",
     ],
 )
 @click.option(

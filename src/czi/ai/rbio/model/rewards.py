@@ -2,7 +2,7 @@ import re
 
 from torch.nn.functional import softmax
 
-from czi.ai.rbio.model.verifiers import call_vcm, verify_gene_info
+from czi.ai.rbio.model.verifiers import call_vcm, verify_gene_info, verify_gene_info_rouge_scores, verify_gene_info_llh
 from czi.ai.rbio.utils.utils import extract_answer, extract_think, extract_gene_info
 
 
@@ -34,7 +34,7 @@ def reward_gene_similarity_via_vcm(
 
     return reward
 
-def reward_gene_information_go_ontology(
+def reward_gene_information_go_ontology_mention(
     gene,
     completion, 
     gene2annotations
@@ -45,6 +45,30 @@ def reward_gene_information_go_ontology(
     else:
         reward = verify_gene_info(gene_info_llm, gene, gene2annotations)
     return reward
+
+def reward_gene_information_go_ontology_rouge_score(
+    gene,
+    completion, 
+    gene2annotations,
+    scorer
+):
+    gene_info_llm = extract_gene_info(completion, gene)
+    if gene_info_llm == 'No information.':
+        reward1, reward2, reward3 = 0, 0, 0
+    else:
+        reward1, reward2, reward3 = verify_gene_info_rouge_scores(gene_info_llm, gene, gene2annotations, scorer)
+    return reward1, reward2, reward3
+
+
+def reward_go_info_llh(
+    gene,
+    gene2annotations,
+    model, 
+    tokenizer,
+    go_ontology_type
+):
+    llh = verify_gene_info_llh(gene, gene2annotations, model, tokenizer, go_ontology_type)
+    return llh
 
 
 def reward_answer_against_label(completion: str, label: bool):
@@ -80,6 +104,9 @@ def low_untagged_ratio(text):
 def starts_with_think(text):
     return 1 if re.match(r"^\s*<think>", text) else 0
 
+def starts_with_gene_info(text):
+    return 1 if re.match(r"^\s*<gene_info>", text) else 0
+
 
 def is_not_too_long(text):
     word_count = len(re.findall(r"\b\w+\b", text))
@@ -88,6 +115,14 @@ def is_not_too_long(text):
 
 def has_one_answer(text):
     matches = re.findall(r"<answer>.*?</answer>", text, re.DOTALL)
+    return 1 if len(matches) == 1 else 0
+
+def has_cellular_component(text):
+    matches = re.findall(r"<gene_info>.*?cellular.*?(component|location|localization).*?</gene_info>", text, re.DOTALL)
+    return 1 if len(matches) == 1 else 0
+
+def has_localizes_mention(text):
+    matches = re.findall(r"<gene_info>.*?(localizes|location|cellular compartment|cellular structure|cellular entity|virion component|macromolecular complex).*?</gene_info>", text, re.DOTALL)
     return 1 if len(matches) == 1 else 0
 
 
@@ -100,6 +135,26 @@ def answer_after_thinks(text):
         return 0
     last_think_end = think_tags[-1].end()
     return 1 if answer_match.start() > last_think_end else 0
+
+def answer_after_gene_info(text):
+    think_tags = list(re.finditer(r"</gene_info>", text))
+    answer_match = re.search(r"<answer>", text)
+    if not answer_match:
+        return 0
+    if not think_tags:
+        return 0
+    last_think_end = think_tags[-1].end()
+    return 1 if answer_match.start() > last_think_end else 0
+
+def think_after_gene_info(text):
+    gene_info_tags = list(re.finditer(r"</gene_info>", text))
+    think_match = re.search(r"<think>", text)
+    if not think_match:
+        return 0
+    if not gene_info_tags:
+        return 0
+    last_gene_info_end = gene_info_tags[-1].end()
+    return 1 if think_match.start() > last_gene_info_end else 0
 
 def gene_info_inside_think(text):
     think_tags = list(re.finditer(r"</think>", text))
@@ -202,12 +257,13 @@ def composite_formatting_reward(text):
         is_not_too_long(text),
         has_one_answer(text),
         answer_after_thinks(text),
-        gene_info_inside_think(text),
+        answer_after_gene_info(text),
+        think_after_gene_info(text),
         gene_infos_have_text(text),
         thinks_have_text(text) * at_least_one_think,
         no_nested_tags(text) * has_tags,
         has_limited_thinks(text) * at_least_one_think,
-        starts_with_think(text),
+        starts_with_gene_info(text),
         all_tags_properly_closed(text) * has_tags,
         ends_with_answer(text),
     ]

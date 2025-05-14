@@ -15,6 +15,7 @@ from torch import nn
 from transcriptformer.model.embedding_surgery import change_embedding_layer
 from transcriptformer.tokenizer.vocab import load_vocabs_and_embeddings
 import pandas as pd
+from rouge_score import rouge_scorer
 
 TF_CFG = os.getenv(
     "TF_CFG",
@@ -151,14 +152,7 @@ def instantiate_vcm(model_type):
                 model, pretrained_embedding_paths
             )
         return model, gene_vocab, gene2ensemble_id
-    
-    
-def read_go_df(filepath):
-    go_df = pd.read_csv(filepath)
-    go_df_grouped = go_df.groupby('gene').aggregate(list).reset_index()
-    gene2annotation = dict(zip(go_df_grouped['gene'].to_list(), go_df_grouped['direct_class_label'].to_list()))
-    return gene2annotation
-    
+
 def instantiate_go_ontologies(go_ontology_type):
     if go_ontology_type != 'all':
         filepath = f'{GO_ONTOLOGIES_FILEPATH}gene_ontology_{go_ontology_type}.csv'
@@ -170,8 +164,17 @@ def instantiate_go_ontologies(go_ontology_type):
         gene2annotation_c.update(gene2annotation_p)
         gene2annotation_c.update(gene2annotation_f)
         gene2annotation = gene2annotation_c
+    return gene2annotation   
+
+def instantiate_rouge_scorer():
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+    return scorer    
+    
+def read_go_df(filepath):
+    go_df = pd.read_csv(filepath)
+    go_df_grouped = go_df.groupby('gene').aggregate(list).reset_index()
+    gene2annotation = dict(zip(go_df_grouped['gene'].to_list(), go_df_grouped['direct_class_label'].to_list()))
     return gene2annotation
-        
 
     
 def verify_gene_info(
@@ -184,9 +187,79 @@ def verify_gene_info(
         return 0.0
     gene_annotations = gene2go_annotations[gene]
     for gene_annotation in gene_annotations:
+        print(gene_annotation)
         if gene_annotation in gene_info_llm:
             reward += 1
     return reward / len(gene_annotations)
+
+
+def verify_gene_info(
+    gene_info_llm, 
+    gene, 
+    gene2go_annotations):
+    
+    reward = 0.0
+    if gene not in gene2go_annotations:
+        return 0.0
+    gene_annotations = gene2go_annotations[gene]
+    for gene_annotation in gene_annotations:
+        # print(gene_annotation)
+        if gene_annotation in gene_info_llm:
+            reward += 1
+    return reward / len(gene_annotations)
+
+
+def verify_gene_info_rouge_scores(
+    gene_info_llm, 
+    gene, 
+    gene2go_annotations, 
+    scorer):
+    
+    if gene not in gene2go_annotations:
+        return 0.0, 0.0, 0.0
+    gene_annotations = ' '.join(gene2go_annotations[gene])
+    scores = scorer.score(gene_info_llm, gene_annotations)
+    rewards = [scores[key].fmeasure for key in ['rouge1', 'rouge1', 'rougeL']]     
+    return rewards
+
+
+def verify_gene_info_llh(
+    gene, 
+    gene2go_annotations, 
+    model, 
+    tokenizer, 
+    go_ontology_type):
+    print('go ontology type', go_ontology_type)
+    if gene not in gene2go_annotations:
+        return 0.0
+    print('made it here', gene)
+    gene_annotations_combined = ', '.join(gene2go_annotations[gene])
+    gene_annotation_c = f'Gene {gene} carries its molecular function in the following cellular components: {gene_annotations_combined}'
+    gene_annotation_f = f'Gene {gene} or its gene products carry the following molecular-level activities inside a cell: {gene_annotations_combined}'
+    gene_annotation_p = f'Gene {gene} is involved in the following biological processes: {gene_annotations_combined}'
+    
+    gene_annotation = ""
+    if go_ontology_type == 'C':
+        gene_annotation = gene_annotation_c
+    elif go_ontology_type == 'F':
+        gene_annotation = gene_annotation_f
+    elif go_ontology_type == 'P':
+        gene_annotation = gene_annotation_p
+    # print("gene_annotation", gene_annotation)
+    input_ids = tokenizer.encode(gene_annotation, return_tensors = 'pt')
+    input_ids = input_ids.to(model.device)
+    # print(input_ids)
+    # return 0.0
+    # print(input_ids)                                                                                                   return 0.0
+    with torch.no_grad():
+        print('made it hereeeeee')
+        print(input_ids)
+        outputs = model(input_ids, labels=input_ids)
+        # print(5454)
+        nll = outputs.loss.item() #avg nll across tokens
+        # print(nll)
+    return -nll
+    
     
     
     
