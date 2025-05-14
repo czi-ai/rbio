@@ -15,8 +15,8 @@ from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
     genes_mentioned_in_think,
     reward_answer_against_label,
-    reward_gene_similarity_via_vcm,
     reward_answer_against_softverifier,
+    reward_gene_similarity_via_vcm,
 )
 from czi.ai.rbio.model.verifiers import instantiate_vcm
 
