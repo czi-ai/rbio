@@ -229,10 +229,8 @@ def verify_gene_info_llh(
     model, 
     tokenizer, 
     go_ontology_type):
-    print('go ontology type', go_ontology_type)
     if gene not in gene2go_annotations:
         return 0.0
-    print('made it here', gene)
     gene_annotations_combined = ', '.join(gene2go_annotations[gene])
     gene_annotation_c = f'Gene {gene} carries its molecular function in the following cellular components: {gene_annotations_combined}'
     gene_annotation_f = f'Gene {gene} or its gene products carry the following molecular-level activities inside a cell: {gene_annotations_combined}'
@@ -245,19 +243,11 @@ def verify_gene_info_llh(
         gene_annotation = gene_annotation_f
     elif go_ontology_type == 'P':
         gene_annotation = gene_annotation_p
-    # print("gene_annotation", gene_annotation)
-    input_ids = tokenizer.encode(gene_annotation, return_tensors = 'pt')
+    input_ids = tokenizer.encode(gene_annotation, return_tensors = 'pt').long()
     input_ids = input_ids.to(model.device)
-    # print(input_ids)
-    # return 0.0
-    # print(input_ids)                                                                                                   return 0.0
     with torch.no_grad():
-        print('made it hereeeeee')
-        print(input_ids)
         outputs = model(input_ids, labels=input_ids)
-        # print(5454)
         nll = outputs.loss.item() #avg nll across tokens
-        # print(nll)
     return -nll
     
     

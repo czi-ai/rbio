@@ -76,6 +76,7 @@ class Reward:
         tokenizer: AutoTokenizer,
         soft_verifiers: Optional[List] = ['go_ontology'],
         go_ontology_type: Optional[str] = 'c',
+        go_rewards: Optional[str] = ['discrete'],
         verifier_type: Optional[str] = "hard",
         vcm_verifier_type: Optional[str] = "transcriptformer",
     ):
@@ -85,6 +86,7 @@ class Reward:
         self.vcm_verifier_type = vcm_verifier_type
         self.verifier_type = verifier_type
         self.go_ontology_type = go_ontology_type
+        self.go_rewards = go_rewards
         self.soft_verifiers = soft_verifiers
 
         self.vcm_model = None
@@ -158,19 +160,29 @@ class Reward:
                         vcm_model=self.vcm_model,
                         gene_vocab=self.vcm_gene_vocab,
                     )
+                go_reward_gp_discrete = 0.0
+                go_reward_gm_discrete = 0.0
+                go_reward_gp_rouge1, go_reward_gp_rouge2, go_reward_gp_rougel = 0.0, 0.0, 0.0
+                go_reward_gm_rouge1, go_reward_gm_rouge2, go_reward_gm_rougel = 0.0, 0.0, 0.0
+                has_cellular_component_reward = 0.0
+                has_localizes_mention_reward = 0.0
+                go_info_llh_gp = 0.0
+                go_info_llh_gm = 0.0
                 if "go_ontology" in self.soft_verifiers:
                     # print('Made it here!')
                     if self.gene2go_annotations is None:
                         self.init_go_ontologies() 
 
-                    go_reward_gp_discrete = reward_gene_information_go_ontology_mention(gp, completion, self.gene2go_annotations)
-                    go_reward_gm_discrete = reward_gene_information_go_ontology_mention(gm, completion, self.gene2go_annotations)
-                    
-                    go_reward_gp_rouge1, go_reward_gp_rouge2, go_reward_gp_rougel = reward_gene_information_go_ontology_rouge_score(gp, completion, self.gene2go_annotations, self.rouge_scorer)
-                    go_reward_gm_rouge1, go_reward_gm_rouge2, go_reward_gm_rougel = reward_gene_information_go_ontology_rouge_score(gm, completion, self.gene2go_annotations, self.rouge_scorer)
+                    if 'discrete' in self.go_rewards:
+                        go_reward_gp_discrete = reward_gene_information_go_ontology_mention(gp, completion, self.gene2go_annotations)
+                        go_reward_gm_discrete = reward_gene_information_go_ontology_mention(gm, completion, self.gene2go_annotations)
+                    if 'rouge' in self.go_rewards:
+                        go_reward_gp_rouge1, go_reward_gp_rouge2, go_reward_gp_rougel = reward_gene_information_go_ontology_rouge_score(gp, completion, self.gene2go_annotations, self.rouge_scorer)
+                        go_reward_gm_rouge1, go_reward_gm_rouge2, go_reward_gm_rougel = reward_gene_information_go_ontology_rouge_score(gm, completion, self.gene2go_annotations, self.rouge_scorer)
+                    if 'llh' in self.go_rewards:
+                        go_info_llh_gp = reward_go_info_llh(gp, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
+                        go_info_llh_gm = reward_go_info_llh(gm, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
                     answer_reward = 0.0
-                    go_info_llh_gp = reward_go_info_llh(gp, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
-                    go_info_llh_gm = reward_go_info_llh(gm, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
                 
 
             if self.count % 10 == 0:
@@ -246,12 +258,14 @@ def train_fn(
     num_generations: int = 4,
     verifier_type: str = "hard",
     soft_verifiers: list = ['go_ontology'],
-    go_ontology_type: str = 'c'
+    go_ontology_type: str = 'c',
+    go_rewards: list = ['discrete']
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
-        f"{model_name}_{verifier_type}_verifier_{('').join(ast.literal_eval(soft_verifiers))}_GO_ontology_{go_ontology_type}_{num_generations}_generations_{per_device_train_batch_size}_batch_size",
+        f"{model_name}_{verifier_type}_verifier_{('').join(soft_verifiers)}_GO_ontology_{go_ontology_type}_{('').join(go_rewards)}_rewards_{num_generations}_generations_{per_device_train_batch_size}_batch_size",
     )
+    print(f'Logging to mlflow run: {mlflow_run_name}')
 
     if hasattr(dataset_path, "__iter__"):
         df_list = []
@@ -277,7 +291,7 @@ def train_fn(
             logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
-            max_steps=3,  # this is for testing purposes; needs to be changed for full training
+            max_steps=10000,  # this is for testing purposes; needs to be changed for full training
             run_name=mlflow_run_name,
             datasets=dataset_path,
             model_name=model_name,
@@ -287,7 +301,7 @@ def train_fn(
 
     trainer_args.output_dir = str(output_dir)
 
-    reward = Reward(model, tokenizer, verifier_type=verifier_type, soft_verifiers=soft_verifiers, go_ontology_type=go_ontology_type)
+    reward = Reward(model, tokenizer, verifier_type=verifier_type, soft_verifiers=soft_verifiers, go_ontology_type=go_ontology_type, go_rewards=go_rewards)
 
     trainer = GRPOTrainer(
         model=model,
@@ -334,11 +348,20 @@ def train_fn(
     "--soft_verifiers",
     help="List of soft verifiers to use",
     default=['go_ontology'],
+    multiple=True,
+    type = str
 )
 @click.option(
     "--go_ontology_type",
     help="Type of go ontology to use",
     default='C',
+)
+@click.option(
+    "--go-rewards", 
+    help="List of rewards to use", 
+    default=['discrete'], 
+    multiple=True,
+    type=str
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
@@ -352,8 +375,12 @@ def train(
     n_generations: int,
     verifier_type: str,
     soft_verifiers: List[str],
-    go_ontology_type: str
+    go_ontology_type: str,
+    go_rewards: List[str]
 ):
+    go_rewards = list(go_rewards)
+    soft_verifiers = list(soft_verifiers)
+
     train_fn(
         dataset_path=dataset_path,
         model_name=model_name,
@@ -363,7 +390,8 @@ def train(
         num_generations=n_generations,
         verifier_type=verifier_type,
         soft_verifiers=soft_verifiers,
-        go_ontology_type=go_ontology_type
+        go_ontology_type=go_ontology_type,
+        go_rewards=go_rewards
     )
 
 
