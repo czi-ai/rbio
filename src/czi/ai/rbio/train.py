@@ -350,7 +350,7 @@ def train_fn(
 @click.option(
     "--soft_verifiers",
     help="List of soft verifiers to use",
-    default=['go_ontology'],
+    default=[],
     multiple=True,
     type = str
 )
