@@ -28,8 +28,8 @@ def reward_gene_similarity_via_vcm(
         .numpy()
     )
 
-    reward = (-1.0 * (answer == True) * p_works_vcm) + (
-        1.0 * (answer == False) * p_works_vcm
+    reward = (1.0 * (answer == True) * p_works_vcm) + (
+        -1.0 * (answer == False) * p_works_vcm
     )
 
     return reward
