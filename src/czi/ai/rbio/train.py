@@ -131,15 +131,15 @@ class Reward:
 
             mention_reward = genes_mentioned_in_think(completion, gp, gm)
             
-            has_cellular_component_reward = has_cellular_component(completion)
-        
-            has_localizes_mention_reward = has_localizes_mention(completion)
 
             # reasoning_advantage_reward = compute_reasoning_advantage(
             #    self.model, self.tokenizer, sys_p, usr_p, completion, label
             # )
 
-            reasoning_advantage_reward = 0
+            reasoning_advantage_reward = 0.0
+            answer_reward = 0.0
+            has_cellular_component_reward = 0.0       
+            has_localizes_mention_reward = 0.0
 
             if self.verifier_type == "hard":
                 if tsk == "differential_expression":
@@ -183,6 +183,9 @@ class Reward:
                         go_info_llh_gp = reward_go_info_llh(gp, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
                         go_info_llh_gm = reward_go_info_llh(gm, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
                     answer_reward = 0.0
+                    if self.go_ontology_type == 'C':
+                        has_cellular_component_reward = has_cellular_component(completion)
+                        has_localizes_mention_reward = has_localizes_mention(completion)
                 
 
             if self.count % 10 == 0:
