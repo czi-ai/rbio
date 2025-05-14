@@ -16,6 +16,7 @@ from czi.ai.rbio.model.rewards import (
     genes_mentioned_in_think,
     reward_answer_against_label,
     reward_gene_similarity_via_vcm,
+    reward_answer_against_softverifier,
 )
 from czi.ai.rbio.model.verifiers import instantiate_vcm
 
@@ -121,6 +122,13 @@ class Reward:
             if self.verifier_type == "hard":
                 if tsk == "differential_expression":
                     answer_reward = reward_answer_against_label(completion, lbl == 1)
+                elif tsk == "direction_of_change":
+                    pass
+            if self.verifier_type == "mlp":
+                if tsk == "differential_expression":
+                    answer_reward = reward_answer_against_softverifier(
+                        completion, gp, gm
+                    )
                 elif tsk == "direction_of_change":
                     pass
             else:
@@ -277,7 +285,9 @@ def train_fn(
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
-@click.option("--verifier-type", help="type of verifier, hard or soft", default="soft")
+@click.option(
+    "--verifier-type", help="type of verifier, hard, mlp or soft", default="hard"
+)
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
