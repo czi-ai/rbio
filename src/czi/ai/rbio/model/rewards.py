@@ -2,8 +2,8 @@ import re
 
 from torch.nn.functional import softmax
 
-from czi.ai.rbio.model.verifiers import call_vcm
-from czi.ai.rbio.utils.utils import extract_answer, extract_think
+from czi.ai.rbio.model.verifiers import call_vcm, verify_gene_info
+from czi.ai.rbio.utils.utils import extract_answer, extract_think, extract_gene_info
 
 
 def reward_gene_similarity_via_vcm(
@@ -32,6 +32,18 @@ def reward_gene_similarity_via_vcm(
         1.0 * (answer == False) * p_works_vcm
     )
 
+    return reward
+
+def reward_gene_information_go_ontology(
+    gene,
+    completion, 
+    gene2annotations
+):
+    gene_info_llm = extract_gene_info(completion, gene)
+    if gene_info_llm == 'No information.':
+        reward = 0
+    else:
+        reward = verify_gene_info(gene_info_llm, gene, gene2annotations)
     return reward
 
 

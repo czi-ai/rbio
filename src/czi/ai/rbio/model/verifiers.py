@@ -14,6 +14,7 @@ from pytorch_lightning.loggers import CSVLogger
 from torch import nn
 from transcriptformer.model.embedding_surgery import change_embedding_layer
 from transcriptformer.tokenizer.vocab import load_vocabs_and_embeddings
+import pandas as pd
 
 TF_CFG = os.getenv(
     "TF_CFG",
@@ -28,6 +29,10 @@ GENE2ENSEMBL_ID_FILEPATH = os.getenv(
     "/mnt/czi-sci-ai/project-rbio/transcriptformer/gene2ensembl_ids.pkl",
 )
 
+GO_ONTOLOGIES_FILEPATH = os.getenv(
+    "GO_ONTOLOGIES_FILEPATH",
+     "/mnt/czi-sci-ai/project-rbio-large/datasets/GO_Ontology/"
+)
 
 def call_vcm(
     gene_perturbed,
@@ -146,3 +151,42 @@ def instantiate_vcm(model_type):
                 model, pretrained_embedding_paths
             )
         return model, gene_vocab, gene2ensemble_id
+    
+    
+def read_go_df(filepath):
+    go_df = pd.read_csv(filepath)
+    go_df_grouped = go_df.groupby('gene').aggregate(list).reset_index()
+    gene2annotation = dict(zip(go_df_grouped['gene'].to_list(), go_df_grouped['direct_class_label'].to_list()))
+    return gene2annotation
+    
+def instantiate_go_ontologies(go_ontology_type):
+    if go_ontology_type != 'all':
+        filepath = f'{GO_ONTOLOGIES_FILEPATH}gene_ontology_{go_ontology_type}.csv'
+        gene2annotation = read_go_df(filepath)
+    else:
+        gene2annotation_c = read_go_df(f'{GO_ONTOLOGIES_FILEPATH}gene_ontology_C.csv')
+        gene2annotation_p = read_go_df(f'{GO_ONTOLOGIES_FILEPATH}gene_ontology_P.csv')
+        gene2annotation_f = read_go_df(f'{GO_ONTOLOGIES_FILEPATH}gene_ontology_F.csv')
+        gene2annotation_c.update(gene2annotation_p)
+        gene2annotation_c.update(gene2annotation_f)
+        gene2annotation = gene2annotation_c
+    return gene2annotation
+        
+
+    
+def verify_gene_info(
+    gene_info_llm, 
+    gene, 
+    gene2go_annotations):
+    
+    reward = 0.0
+    if gene not in gene2go_annotations:
+        return 0.0
+    gene_annotations = gene2go_annotations[gene]
+    for gene_annotation in gene_annotations:
+        if gene_annotation in gene_info_llm:
+            reward += 1
+    return reward / len(gene_annotations)
+    
+    
+    

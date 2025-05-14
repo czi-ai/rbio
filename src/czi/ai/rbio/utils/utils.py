@@ -17,3 +17,13 @@ def extract_think(text, separator="\n"):
         r"<think>(.*?)</think>", text, re.DOTALL | re.IGNORECASE
     )
     return separator.join(think_contents).strip()
+
+
+def extract_gene_info(text, gene):
+    # print(text)
+    found = re.search(f'<gene_info>\s*(.*?{gene}.*?)\s*</gene_info>', text, re.IGNORECASE)
+    if found:
+        matches = found.group(1).strip()
+        if gene in matches:
+            return matches
+    return f"No information."
