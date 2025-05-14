@@ -97,17 +97,29 @@ def main(results_csv: str, group_by_target: bool) -> None:
 
     avg_metrics = {k: np.nanmean([m[k] for m in metrics_list]) for k in metrics_list[0]}
 
+    tp = int(np.nansum([m["TP"] for m in metrics_list]))
+    fp = int(np.nansum([m["FP"] for m in metrics_list]))
+    tn = int(np.nansum([m["TN"] for m in metrics_list]))
+    fn = int(np.nansum([m["FN"] for m in metrics_list]))
     print("\nBenchmark Results:")
     print("-----------------")
-    print(f"TP: {int(np.nansum([m['TP'] for m in metrics_list]))}")
-    print(f"FP: {int(np.nansum([m['FP'] for m in metrics_list]))}")
-    print(f"TN: {int(np.nansum([m['TN'] for m in metrics_list]))}")
-    print(f"FN: {int(np.nansum([m['FN'] for m in metrics_list]))}")
+    print(f"TP: {tp}")
+    print(f"FP: {fp}")
+    print(f"TN: {tn}")
+    print(f"FN: {fn}")
     print(f"Accuracy: {avg_metrics['Accuracy']:.4f}")
     print(f"Precision: {avg_metrics['Precision']:.4f}")
     print(f"Recall: {avg_metrics['Recall']:.4f}")
     print(f"F1 Score: {avg_metrics['F1-score']:.4f}")
     print(f"AUC ROC: {avg_metrics['AUC ROC']:.4f}")
+
+    row = (
+        f"{tp}|{fp}|{tn}|{fn}|{avg_metrics['Accuracy']:.4f}"
+        f"|{avg_metrics['Precision']:.4f}|{avg_metrics['Recall']:.4f}"
+        f"|{avg_metrics['F1-score']:.4f}|{avg_metrics['AUC ROC']:.4f}"
+    )
+
+    print(row)
 
 
 if __name__ == "__main__":
