@@ -220,8 +220,8 @@ class Reward:
                 + 10 * go_reward_gm_rouge1 + 10 * go_reward_gm_rouge2 + 10 * go_reward_gm_rougel
                 + has_cellular_component_reward 
                 + has_localizes_mention_reward
-                + 10 *go_info_llh_gp
-                + 10 *go_info_llh_gm
+                + go_info_llh_gp
+                + go_info_llh_gm
 
             )
             # mlflow.log_metric("format_reward", format_reward, step=self.count)
