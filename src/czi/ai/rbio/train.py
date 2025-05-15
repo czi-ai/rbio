@@ -259,10 +259,11 @@ def train_fn(
     trainer_args: GRPOConfig = None,
     per_device_train_batch_size: int = 4,
     num_generations: int = 4,
+    max_steps: int = 10000,
     verifier_type: str = "hard",
     soft_verifiers: list = ['go_ontology'],
     go_ontology_type: str = 'c',
-    go_rewards: list = ['discrete']
+    go_rewards: list = ['discrete'],
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
@@ -294,7 +295,7 @@ def train_fn(
             logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
-            max_steps=100,  # this is for testing purposes; needs to be changed for full training
+            max_steps=max_steps,  # this is for testing purposes; needs to be changed for full training
             run_name=mlflow_run_name,
             datasets=dataset_path,
             model_name=model_name,
@@ -368,6 +369,7 @@ def train_fn(
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
+@click.option("--max-steps", help="number of steps to run the model for", default=10000, type=int)
 @click.option("--verifier-type", help="type of verifier, hard or soft", default="soft")
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
@@ -376,6 +378,7 @@ def train(
     resume: bool,
     batch_size: int,
     n_generations: int,
+    max_steps: int,
     verifier_type: str,
     soft_verifiers: List[str],
     go_ontology_type: str,
@@ -391,6 +394,7 @@ def train(
         resume_from_checkpoint=resume,
         per_device_train_batch_size=batch_size,
         num_generations=n_generations,
+        max_steps=max_steps,
         verifier_type=verifier_type,
         soft_verifiers=soft_verifiers,
         go_ontology_type=go_ontology_type,
