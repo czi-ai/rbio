@@ -108,3 +108,6 @@ fi
 if ! grep -q "MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING=" ~/.bashrc; then
     echo "export MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING=${MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING}" >> ~/.bashrc
 fi
+
+sudo chown -R flow:flow /mnt/czi-sci-ai/project-rbio-large/checkpoints/
+sudo chmod -R 777 /mnt/czi-sci-ai/project-rbio-large/checkpoints/
