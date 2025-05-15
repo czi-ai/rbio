@@ -216,12 +216,12 @@ class Reward:
                 + reasoning_advantage_reward
                 + go_reward_gp_discrete
                 + go_reward_gm_discrete
-                + go_reward_gp_rouge1 + go_reward_gp_rouge2 + go_reward_gp_rougel
-                + go_reward_gm_rouge1 + go_reward_gm_rouge2 + go_reward_gm_rougel
+                + 10 * go_reward_gp_rouge1 + 10 * go_reward_gp_rouge2 + 10 * go_reward_gp_rougel
+                + 10 * go_reward_gm_rouge1 + 10 * go_reward_gm_rouge2 + 10 * go_reward_gm_rougel
                 + has_cellular_component_reward 
                 + has_localizes_mention_reward
-                + go_info_llh_gp
-                + go_info_llh_gm
+                + 10 *go_info_llh_gp
+                + 10 *go_info_llh_gm
 
             )
             # mlflow.log_metric("format_reward", format_reward, step=self.count)
@@ -294,7 +294,7 @@ def train_fn(
             logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
-            max_steps=10000,  # this is for testing purposes; needs to be changed for full training
+            max_steps=100,  # this is for testing purposes; needs to be changed for full training
             run_name=mlflow_run_name,
             datasets=dataset_path,
             model_name=model_name,
