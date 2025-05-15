@@ -1,14 +1,16 @@
+import copy
+import json
 import os
 import random
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
 import click
-import mlflow
+import numpy as np
 import pandas as pd
+import torch.distributed as dist
 from datasets import Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
 
 from czi.ai.rbio.model.rewards import (
@@ -18,6 +20,7 @@ from czi.ai.rbio.model.rewards import (
     reward_gene_similarity_via_vcm,
 )
 from czi.ai.rbio.model.verifiers import instantiate_vcm
+from czi.ai.rbio.utils.metrics_collector import MetricsCollector
 
 
 def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
@@ -81,35 +84,12 @@ class Reward:
         self.vcm_gene_vocab = None
         self.gene2ensembl_id = None
 
-        # Placeholder for MLflow instance from trainer instance of MLFlowCallback
-        self._ml_flow = None
+        self.metrics_collector = MetricsCollector()
 
     def init_vcm_model(self):
         self.vcm_model, self.vcm_gene_vocab, self.gene2ensembl_id = instantiate_vcm(
             self.vcm_verifier_type
         )
-
-    def set_mlflow(self, trainer: GRPOTrainer):
-        """
-        Use the same MLFlow instance as the callback used by the trainer.
-        """
-        mlflow_callbacks = [
-            callback
-            for callback in trainer.callback_handler.callbacks
-            if isinstance(callback, MLflowCallback)
-        ]
-        if mlflow_callbacks:
-            self._ml_flow = mlflow_callbacks[0]._ml_flow
-        else:
-            raise RuntimeError("Could not find MLflow callback in trainer")
-
-    def log_metrics(self, metrics: dict[str, float]):
-        if self._ml_flow:
-            self._ml_flow.log_metrics(metrics, step=self.count)
-        else:
-            raise RuntimeError(
-                "MLflow instance not set. Please call set_mlflow() first"
-            )
 
     def compute_reward(
         self,
@@ -123,6 +103,7 @@ class Reward:
         **kwargs,
     ):
         scores = []
+        metrics_batch = []
 
         for completion, lbl, gp, gm, sys_p, usr_p, tsk in zip(
             completions,
@@ -189,9 +170,11 @@ class Reward:
                 "reasoning_adv_reward": reasoning_advantage_reward,
                 "total_score": total_score,
             }
-            self.log_metrics(metrics)
+            metrics_batch.append(metrics)
 
             scores.append(total_score)
+
+        self.metrics_collector.log_metrics(metrics_batch=metrics_batch, step=self.count)
 
         self.count += 1
 
@@ -269,8 +252,6 @@ def train_fn(
         args=trainer_args,
         train_dataset=dataset,
     )
-
-    reward.set_mlflow(trainer)
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
