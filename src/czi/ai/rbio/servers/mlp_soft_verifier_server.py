@@ -31,7 +31,10 @@ def perturbation():
     gene_a = data.get("Gene_A")
     gene_b = data.get("Gene_B")
 
-    if gene_a not in name_to_embedding or gene_b not in name_to_embedding:
+    if (
+        gene_a.lower() not in name_to_embedding
+        or gene_b.lower() not in name_to_embedding
+    ):
         return (
             jsonify(
                 {
