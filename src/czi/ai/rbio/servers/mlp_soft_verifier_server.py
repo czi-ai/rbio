@@ -41,8 +41,8 @@ def perturbation():
             400,
         )
 
-    emb_a = torch.tensor(name_to_embedding[gene_a], dtype=torch.float32).unsqueeze(0)
-    emb_b = torch.tensor(name_to_embedding[gene_b], dtype=torch.float32).unsqueeze(0)
+    emb_a = torch.tensor(name_to_embedding[gene_a.lower()], dtype=torch.float32).unsqueeze(0)
+    emb_b = torch.tensor(name_to_embedding[gene_b.lower()], dtype=torch.float32).unsqueeze(0)
 
     inputs = torch.cat([emb_a, emb_b], dim=1)
     with torch.no_grad():
