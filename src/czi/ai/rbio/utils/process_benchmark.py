@@ -10,7 +10,7 @@ from sklearn.metrics import roc_auc_score
 
 def calculate_metrics(
     ground_truth: pd.Series, predictions: pd.Series
-) -> Tuple[int, int, int, int, float, float, float, float, float]:
+) -> Tuple[int, int, int, int, float, float, float, float, float, float]:
 
     # Convert to boolean for easier comparison
     ground_truth_bool = ground_truth.astype(bool)
@@ -48,6 +48,11 @@ def calculate_metrics(
         if (precision + recall) > 0
         else 0
     )
+    specificity = (
+        true_negatives / (true_negatives + false_positives)
+        if (true_negatives + false_positives) > 0
+        else 0
+    )
 
     return (
         true_positives,
@@ -59,6 +64,7 @@ def calculate_metrics(
         precision,
         recall,
         f1,
+        specificity,
     )
 
 
@@ -88,15 +94,22 @@ def main(results_csv: str, group_by_target: bool) -> None:
     recalls = []
     f1s = []
     aucs = []
+    specificities = []
 
     if group_by_target:
         targets = all_results["gene_monitored"].unique()
 
         for target in targets:
             # Calculate metrics
-            tp, fp, tn, fn, auc, accuracy, precision, recall, f1 = calculate_metrics(
-                all_results[all_results["gene_monitored"] == target]["ground_truth"],
-                all_results[all_results["gene_monitored"] == target]["binary_answer"],
+            tp, fp, tn, fn, auc, accuracy, precision, recall, f1, specificity = (
+                calculate_metrics(
+                    all_results[all_results["gene_monitored"] == target][
+                        "ground_truth"
+                    ],
+                    all_results[all_results["gene_monitored"] == target][
+                        "binary_answer"
+                    ],
+                )
             )
 
             tps.append(tp)
@@ -108,10 +121,13 @@ def main(results_csv: str, group_by_target: bool) -> None:
             precisions.append(precision)
             recalls.append(recall)
             f1s.append(f1)
+            specificities.append(specificity)
     else:
-        tp, fp, tn, fn, auc, accuracy, precision, recall, f1 = calculate_metrics(
-            all_results["ground_truth"],
-            all_results["binary_answer"],
+        tp, fp, tn, fn, auc, accuracy, precision, recall, f1, specificity = (
+            calculate_metrics(
+                all_results["ground_truth"],
+                all_results["binary_answer"],
+            )
         )
 
         tps.append(tp)
@@ -123,6 +139,7 @@ def main(results_csv: str, group_by_target: bool) -> None:
         precisions.append(precision)
         recalls.append(recall)
         f1s.append(f1)
+        specificities.append(specificity)
 
     # Print results
     print("\nBenchmark Results:")
@@ -136,6 +153,13 @@ def main(results_csv: str, group_by_target: bool) -> None:
     print(f"Recall: {mean(recalls):.4f}")
     print(f"F1 Score: {mean(f1s):.4f}")
     print(f"AUC ROC: {mean(aucs):.4f}")
+    print(f"Specificity: {mean(specificities):.4f}")
+
+    # Print metrics in single line with specified format
+    print("\nMetrics in single line:")
+    print(
+        f"{sum(tps)}|{sum(fps)}|{sum(tns)}|{sum(fns)}|{mean(accuracies):.4f}|{mean(precisions):.4f}|{mean(recalls):.4f}|{mean(f1s):.4f}|{mean(specificities):.4f}|{mean(aucs):.4f}"
+    )
 
 
 if __name__ == "__main__":
