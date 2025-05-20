@@ -43,10 +43,10 @@ class GeneDataset(Dataset):
     def __getitem__(self, idx: int):
         row = self.df.iloc[idx]
         gene_pert = torch.tensor(
-            self.name_to_embedding[row["gene_perturbed"]], dtype=torch.float32
+            self.name_to_embedding[row["gene_perturbed"].lower()], dtype=torch.float32
         )
         gene_mon = torch.tensor(
-            self.name_to_embedding[row["gene_monitored"]], dtype=torch.float32
+            self.name_to_embedding[row["gene_monitored"].lower()], dtype=torch.float32
         )
         label = torch.tensor(row["label"], dtype=torch.float32)
         return gene_pert, gene_mon, label
@@ -145,8 +145,14 @@ def one_hot_training(
 
     os.makedirs(checkpoint_dir, exist_ok=True)
     checkpoint_path = os.path.join(checkpoint_dir, "mlp_model.pt")
+    name_to_embedding_path = os.path.join(checkpoint_dir, "name_to_embedding.pkl")
+    
     torch.save(model.state_dict(), checkpoint_path)
+    with open(name_to_embedding_path, "wb") as f:
+        pickle.dump(name_to_embedding, f)
+    
     print(f"Model checkpoint saved to {checkpoint_path}")
+    print(f"Embedding dictionary saved to {name_to_embedding_path}")
 
 
 def embedding_training(
@@ -167,7 +173,7 @@ def embedding_training(
     missing = 0
     for gene, idx in gene_to_index.items():
         try:
-            name_to_embedding[gene] = np.asarray(
+            name_to_embedding[gene.lower()] = np.asarray(
                 emb_dict[gene.lower()], dtype=np.float32
             )
         except KeyError:
@@ -176,7 +182,7 @@ def embedding_training(
             rand_emb = np.random.randn(len(next(iter(emb_dict.values())))).astype(
                 np.float32
             )
-            name_to_embedding[gene] = rand_emb
+            name_to_embedding[gene.lower()] = rand_emb
 
     model = train_model(
         df_training, name_to_embedding, batch_size=batch_size, num_epochs=num_epochs
@@ -184,8 +190,14 @@ def embedding_training(
 
     os.makedirs(checkpoint_dir, exist_ok=True)
     checkpoint_path = os.path.join(checkpoint_dir, "mlp_model.pt")
+    name_to_embedding_path = os.path.join(checkpoint_dir, "name_to_embedding.pkl")
+    
     torch.save(model.state_dict(), checkpoint_path)
+    with open(name_to_embedding_path, "wb") as f:
+        pickle.dump(name_to_embedding, f)
+    
     print(f"Model checkpoint saved to {checkpoint_path}")
+    print(f"Embedding dictionary saved to {name_to_embedding_path}")
 
 
 @click.command()

@@ -1,6 +1,7 @@
 import os
 import pickle
 
+import click
 import torch
 from flask import Flask, jsonify, request
 from torch import nn
@@ -19,22 +20,9 @@ class MLPClassifier(nn.Module):
         return self.model(x)
 
 
-# Load model and embedding dictionary from environment variable
-MLP_VERIFIER_CHECKPOINT_DIR = os.environ.get(
-    "MLP_VERIFIER_CHECKPOINT_DIR", "./checkpoints"
-)
-MODEL_PATH = os.path.join(MLP_VERIFIER_CHECKPOINT_DIR, "mlp_model.pt")
-DICT_PATH = os.path.join(MLP_VERIFIER_CHECKPOINT_DIR, "name_to_embedding.pkl")
-
-# Load embedding dictionary
-with open(DICT_PATH, "rb") as f:
-    name_to_embedding = pickle.load(f)
-
-# Infer input dimension
-input_dim = len(next(iter(name_to_embedding.values())))
-model = MLPClassifier(input_dim)
-model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device("cpu")))
-model.eval()
+# Global variables to store model and embeddings
+model = None
+name_to_embedding = None
 
 
 @app.route("/perturbation", methods=["POST"])
@@ -66,5 +54,34 @@ def perturbation():
     )
 
 
-if __name__ == "__main__":
+@click.command()
+@click.option(
+    "--mlp-model-path",
+    required=True,
+    help="Path to the MLP model checkpoint file",
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option(
+    "--gene-dict-path",
+    required=True,
+    help="Path to the gene embedding dictionary pickle file",
+    type=click.Path(exists=True, dir_okay=False),
+)
+def main(mlp_model_path: str, gene_dict_path: str):
+    global model, name_to_embedding
+    
+    # Load embedding dictionary
+    with open(gene_dict_path, "rb") as f:
+        name_to_embedding = pickle.load(f)
+
+    # Infer input dimension and load model
+    input_dim = len(next(iter(name_to_embedding.values())))
+    model = MLPClassifier(input_dim)
+    model.load_state_dict(torch.load(mlp_model_path, map_location=torch.device("cpu")))
+    model.eval()
+
     app.run(host="0.0.0.0", port=5000)
+
+
+if __name__ == "__main__":
+    main()
