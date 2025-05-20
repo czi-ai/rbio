@@ -1,65 +1,50 @@
-import os
-from pathlib import Path
-from statistics import mean
-from typing import Tuple
+from typing import Dict
 
 import click
+import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 
-def calculate_metrics(
-    ground_truth: pd.Series, predictions: pd.Series
-) -> Tuple[int, int, int, int, float, float, float, float, float]:
+def compute_metrics(
+    y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray | None = None
+) -> Dict[str, float]:
+    # Confusion matrix (labels must be [0, 1] for consistent order)
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
 
-    # Convert to boolean for easier comparison
-    ground_truth_bool = ground_truth.astype(bool)
-    predictions_bool = predictions.astype(bool)
+    # Main classification metrics
+    accuracy = accuracy_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred, zero_division=0)
+    recall = recall_score(y_true, y_pred, zero_division=0)
+    f1 = f1_score(y_true, y_pred, zero_division=0)
 
-    # Calculate confusion matrix elements
-    true_positives = ((ground_truth_bool) & (predictions_bool)).sum()
-    false_positives = ((~ground_truth_bool) & (predictions_bool)).sum()
-    true_negatives = ((~ground_truth_bool) & (~predictions_bool)).sum()
-    false_negatives = ((ground_truth_bool) & (~predictions_bool)).sum()
-
-    # Calculate AUC ROC
+    # AUC with probabilities (if available), otherwise use binary
     try:
-        auc_score = roc_auc_score(ground_truth, predictions)
+        if y_prob is not None:
+            auc = roc_auc_score(y_true, y_prob)
+        else:
+            auc = roc_auc_score(y_true, y_pred)
     except ValueError:
-        # Handle case where all predictions are the same
-        auc_score = 0.5
+        auc = float("nan")
 
-    # Calculate additional metrics
-    accuracy = (true_positives + true_negatives) / (
-        true_positives + true_negatives + false_positives + false_negatives
-    )
-    precision = (
-        true_positives / (true_positives + false_positives)
-        if (true_positives + false_positives) > 0
-        else 0
-    )
-    recall = (
-        true_positives / (true_positives + false_negatives)
-        if (true_positives + false_negatives) > 0
-        else 0
-    )
-    f1 = (
-        2 * (precision * recall) / (precision + recall)
-        if (precision + recall) > 0
-        else 0
-    )
-
-    return (
-        true_positives,
-        false_positives,
-        true_negatives,
-        false_negatives,
-        auc_score,
-        accuracy,
-        precision,
-        recall,
-        f1,
-    )
+    return {
+        "TP": int(tp),
+        "FP": int(fp),
+        "TN": int(tn),
+        "FN": int(fn),
+        "Accuracy": accuracy,
+        "Precision": precision,
+        "Recall": recall,
+        "F1-score": f1,
+        "AUC ROC": auc,
+    }
 
 
 @click.command()
@@ -71,71 +56,70 @@ def calculate_metrics(
 )
 @click.option(
     "--group-by-target",
-    default=False,
-    help="Whether the stats should be grouped by target gene and then averaged",
-    type=bool,
+    is_flag=True,
+    help="Use per-gene AUC and classification metrics (as in the baseline paper)",
 )
 def main(results_csv: str, group_by_target: bool) -> None:
-    # Read the CSV file
     all_results = pd.read_csv(results_csv)
+    all_results = all_results[all_results["binary_answer"] != -1]
 
-    tps = []
-    fps = []
-    tns = []
-    fns = []
-    accuracies = []
-    precisions = []
-    recalls = []
-    f1s = []
-    aucs = []
+    # Ensure answer column is numeric if present
+    if "answer" in all_results.columns:
+        all_results["answer"] = pd.to_numeric(all_results["answer"], errors="coerce")
+
+    y_true_all = all_results["ground_truth"].values
+    y_pred_all = all_results["binary_answer"].values
+    y_prob_all = (
+        all_results["answer"].values if "answer" in all_results.columns else None
+    )
+
+    metrics_list = []
 
     if group_by_target:
-        targets = all_results["gene_monitored"].unique()
+        for gene, group in all_results.groupby("gene_monitored"):
+            y_true = group["ground_truth"].values
+            y_pred = group["binary_answer"].values
 
-        for target in targets:
-            # Calculate metrics
-            tp, fp, tn, fn, auc, accuracy, precision, recall, f1 = calculate_metrics(
-                all_results[all_results["gene_monitored"] == target]["ground_truth"],
-                all_results[all_results["gene_monitored"] == target]["binary_answer"],
-            )
+            # Attempt to get numeric probabilities
+            if "answer" in group.columns:
+                y_prob = pd.to_numeric(group["answer"], errors="coerce").values
+            else:
+                y_prob = None
 
-            tps.append(tp)
-            fps.append(fp)
-            tns.append(tn)
-            fns.append(fn)
-            aucs.append(auc)
-            accuracies.append(accuracy)
-            precisions.append(precision)
-            recalls.append(recall)
-            f1s.append(f1)
+            if len(np.unique(y_true)) < 2:
+                continue  # skip degenerate groups
+
+            metrics = compute_metrics(y_true, y_pred, y_prob)
+            metrics_list.append(metrics)
     else:
-        tp, fp, tn, fn, auc, accuracy, precision, recall, f1 = calculate_metrics(
-            all_results["ground_truth"],
-            all_results["binary_answer"],
-        )
+        metrics = compute_metrics(y_true_all, y_pred_all, y_prob_all)
+        metrics_list.append(metrics)
 
-        tps.append(tp)
-        fps.append(fp)
-        tns.append(tn)
-        fns.append(fn)
-        aucs.append(auc)
-        accuracies.append(accuracy)
-        precisions.append(precision)
-        recalls.append(recall)
-        f1s.append(f1)
+    avg_metrics = {k: np.nanmean([m[k] for m in metrics_list]) for k in metrics_list[0]}
 
-    # Print results
+    tp = int(np.nansum([m["TP"] for m in metrics_list]))
+    fp = int(np.nansum([m["FP"] for m in metrics_list]))
+    tn = int(np.nansum([m["TN"] for m in metrics_list]))
+    fn = int(np.nansum([m["FN"] for m in metrics_list]))
     print("\nBenchmark Results:")
     print("-----------------")
-    print(f"True Positives (TP): {sum(tps)}")
-    print(f"False Positives (FP): {sum(fps)}")
-    print(f"True Negatives (TN): {sum(tns)}")
-    print(f"False Negatives (FN): {sum(fns)}")
-    print(f"\nAccuracy: {mean(accuracies):.4f}")
-    print(f"Precision: {mean(precisions):.4f}")
-    print(f"Recall: {mean(recalls):.4f}")
-    print(f"F1 Score: {mean(f1s):.4f}")
-    print(f"AUC ROC: {mean(aucs):.4f}")
+    print(f"TP: {tp}")
+    print(f"FP: {fp}")
+    print(f"TN: {tn}")
+    print(f"FN: {fn}")
+    print(f"Accuracy: {avg_metrics['Accuracy']:.4f}")
+    print(f"Precision: {avg_metrics['Precision']:.4f}")
+    print(f"Recall: {avg_metrics['Recall']:.4f}")
+    print(f"F1 Score: {avg_metrics['F1-score']:.4f}")
+    print(f"AUC ROC: {avg_metrics['AUC ROC']:.4f}")
+
+    row = (
+        f"{tp}|{fp}|{tn}|{fn}|{avg_metrics['Accuracy']:.4f}"
+        f"|{avg_metrics['Precision']:.4f}|{avg_metrics['Recall']:.4f}"
+        f"|{avg_metrics['F1-score']:.4f}|{avg_metrics['AUC ROC']:.4f}"
+    )
+
+    print(row)
 
 
 if __name__ == "__main__":
