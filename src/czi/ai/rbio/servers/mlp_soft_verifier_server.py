@@ -41,8 +41,12 @@ def perturbation():
             400,
         )
 
-    emb_a = torch.tensor(name_to_embedding[gene_a.lower()], dtype=torch.float32).unsqueeze(0)
-    emb_b = torch.tensor(name_to_embedding[gene_b.lower()], dtype=torch.float32).unsqueeze(0)
+    emb_a = torch.tensor(
+        name_to_embedding[gene_a.lower()], dtype=torch.float32
+    ).unsqueeze(0)
+    emb_b = torch.tensor(
+        name_to_embedding[gene_b.lower()], dtype=torch.float32
+    ).unsqueeze(0)
 
     inputs = torch.cat([emb_a, emb_b], dim=1)
     with torch.no_grad():
@@ -69,7 +73,7 @@ def perturbation():
 )
 def main(mlp_model_path: str, gene_dict_path: str):
     global model, name_to_embedding
-    
+
     # Load embedding dictionary
     with open(gene_dict_path, "rb") as f:
         name_to_embedding = pickle.load(f)

@@ -146,11 +146,11 @@ def one_hot_training(
     os.makedirs(checkpoint_dir, exist_ok=True)
     checkpoint_path = os.path.join(checkpoint_dir, "mlp_model.pt")
     name_to_embedding_path = os.path.join(checkpoint_dir, "name_to_embedding.pkl")
-    
+
     torch.save(model.state_dict(), checkpoint_path)
     with open(name_to_embedding_path, "wb") as f:
         pickle.dump(name_to_embedding, f)
-    
+
     print(f"Model checkpoint saved to {checkpoint_path}")
     print(f"Embedding dictionary saved to {name_to_embedding_path}")
 
@@ -191,11 +191,11 @@ def embedding_training(
     os.makedirs(checkpoint_dir, exist_ok=True)
     checkpoint_path = os.path.join(checkpoint_dir, "mlp_model.pt")
     name_to_embedding_path = os.path.join(checkpoint_dir, "name_to_embedding.pkl")
-    
+
     torch.save(model.state_dict(), checkpoint_path)
     with open(name_to_embedding_path, "wb") as f:
         pickle.dump(name_to_embedding, f)
-    
+
     print(f"Model checkpoint saved to {checkpoint_path}")
     print(f"Embedding dictionary saved to {name_to_embedding_path}")
 
