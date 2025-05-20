@@ -136,7 +136,7 @@ def one_hot_training(
     gene_to_index = {gene: i for i, gene in enumerate(all_genes)}
     identity_matrix = np.eye(len(all_genes), dtype=np.float32)
     name_to_embedding = {
-        gene: identity_matrix[idx] for gene, idx in gene_to_index.items()
+        gene.lower(): identity_matrix[idx] for gene, idx in gene_to_index.items()
     }
 
     model = train_model(

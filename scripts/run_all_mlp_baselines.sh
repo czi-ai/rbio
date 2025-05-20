@@ -15,7 +15,7 @@ ESM_EMBEDDING="/mnt/czi-sci-ai/project-rbio/repr/esm_embedding_dictionary_filled
 echo "Training phase..."
 for train in "${datasets[@]}"; do
   for strategy in "${strategies[@]}"; do
-    train_file="${DATASET_BASE}/${train}-train-v0.1.1-no-augmentation.csv"
+    train_file="${DATASET_BASE}/${train}-train-v0.2.0-no-augmentation.csv"
     checkpoint_dir="${CHECKPOINT_BASE}/MLP-${train}-${strategy}"
 
     # Skip if model already exists
@@ -51,7 +51,7 @@ echo -e "\nTesting phase..."
 for train in "${datasets[@]}"; do
   for test in "${datasets[@]}"; do
     for strategy in "${strategies[@]}"; do
-      test_file="${DATASET_BASE}/${test}-test-v0.1.1-no-augmentation.csv"
+      test_file="${DATASET_BASE}/${test}-test-v0.2.0-no-augmentation.csv"
       output_file="${OUTPUT_BASE}/${train}-${test}-${strategy}.csv"
       checkpoint_dir="${CHECKPOINT_BASE}/MLP-${train}-${strategy}"
 
