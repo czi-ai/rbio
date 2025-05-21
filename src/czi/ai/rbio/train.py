@@ -412,9 +412,9 @@ def train(
     if cell_line == 'all':
         dataset_path=[
             "/mnt/czi-sci-ai/project-rbio-large/datasets/hepg2-train-v0.1.1-go_ontology.csv",
-            "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv",
-            "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv",
-            "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv",
+            "/mnt/czi-sci-ai/project-rbio-large/datasets/jurkat-train-v0.1.1-go_ontology.csv",
+            "/mnt/czi-sci-ai/project-rbio-large/datasets/rpe1-train-v0.1.1-go_ontology.csv",
+            "/mnt/czi-sci-ai/project-rbio-large/datasets/k562-train-v0.1.1-go_ontology.csv"
         ]
 
     train_fn(
