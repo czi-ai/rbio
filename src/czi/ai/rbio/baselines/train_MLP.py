@@ -122,39 +122,6 @@ def train_model(
     return model
 
 
-def one_hot_training(
-    training_set_paths,
-    batch_size: int,
-    num_epochs: int,
-    checkpoint_dir: os.PathLike,
-):
-    dfs = [pd.read_csv(path) for path in training_set_paths]
-    df_training = pd.concat(dfs, ignore_index=True)
-
-    genes = pd.unique(df_training[["gene_perturbed", "gene_monitored"]].values.ravel())
-    all_genes = sorted(set(genes))
-    gene_to_index = {gene: i for i, gene in enumerate(all_genes)}
-    identity_matrix = np.eye(len(all_genes), dtype=np.float32)
-    name_to_embedding = {
-        gene.lower(): identity_matrix[idx] for gene, idx in gene_to_index.items()
-    }
-
-    model = train_model(
-        df_training, name_to_embedding, batch_size=batch_size, num_epochs=num_epochs
-    )
-
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    checkpoint_path = os.path.join(checkpoint_dir, "mlp_model.pt")
-    name_to_embedding_path = os.path.join(checkpoint_dir, "name_to_embedding.pkl")
-
-    torch.save(model.state_dict(), checkpoint_path)
-    with open(name_to_embedding_path, "wb") as f:
-        pickle.dump(name_to_embedding, f)
-
-    print(f"Model checkpoint saved to {checkpoint_path}")
-    print(f"Embedding dictionary saved to {name_to_embedding_path}")
-
-
 def embedding_training(
     training_set_paths,
     emb_dict: dict,
@@ -207,34 +174,25 @@ def embedding_training(
     multiple=True,
     help="Training dataset CSV file(s)",
 )
-@click.option(
-    "--strategy", required=True, help="Training strategy: '1-hot' or 'embedding'"
-)
 @click.option("--batch-size", default=32, help="Batch size")
 @click.option("--num-epochs", default=10, help="Number of training epochs")
-@click.option("--embedding-file", default=None, help="Path to embedding .pkl file")
+@click.option("--embedding-file", required=True, help="Path to embedding .pkl file")
 @click.option(
     "--checkpoint-dir", required=True, help="Directory to save model checkpoint"
 )
 def main(
     train_dataset_path,
-    strategy,
     batch_size,
     num_epochs,
     embedding_file,
     checkpoint_dir,
 ):
     set_seed(42)
-    if strategy == "1-hot":
-        one_hot_training(train_dataset_path, batch_size, num_epochs, checkpoint_dir)
-    else:
-        if not embedding_file:
-            raise ValueError("Embedding strategy requires --embedding-file.")
-        with open(embedding_file, "rb") as f:
-            emb_dict = pickle.load(f)
-        embedding_training(
-            train_dataset_path, emb_dict, batch_size, num_epochs, checkpoint_dir
-        )
+    with open(embedding_file, "rb") as f:
+        emb_dict = pickle.load(f)
+    embedding_training(
+        train_dataset_path, emb_dict, batch_size, num_epochs, checkpoint_dir
+    )
 
 
 if __name__ == "__main__":
