@@ -55,8 +55,12 @@ if [ -n "${PVC_HOME_DIR}" ] && [ -d "${PVC_HOME_DIR}" ]; then
         if [ ! -d "venv" ]; then
             uv venv -n venv --python 3.11 --relocatable
             source venv/bin/activate
-            uv pip install --quiet  -e '.'
-            uv pip install git+https://github.com/czi-ai/transcriptformer --no-deps
+            uv pip install poetry
+            poetry self add poetry-plugin-export
+            poetry export --without-hashes > /tmp/requirements.txt
+            uv pip install --quiet -r /tmp/requirements.txt
+            uv pip install --no-deps git+https://github.com/czi-ai/transcriptformer
+            uv pip install --no-deps .
         else
             source venv/bin/activate
         fi
@@ -68,8 +72,12 @@ else
     rm -rf venv
     uv venv -n venv --python 3.11 --relocatable
     source venv/bin/activate
-    uv pip install --quiet  -e '.'
-    uv pip install git+https://github.com/czi-ai/transcriptformer --no-deps
+    uv pip install poetry
+    poetry self add poetry-plugin-export
+    poetry export --without-hashes > /tmp/requirements.txt
+    uv pip install --quiet -r /tmp/requirements.txt
+    uv pip install --no-deps git+https://github.com/czi-ai/transcriptformer
+    uv pip install --no-deps .
 fi
 
 export RBIO_HOME_DIR
