@@ -7,7 +7,10 @@ import numpy as np
 import pandas as pd
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, Sampler
+from torch.utils.data import DataLoader
+
+from czi.ai.rbio.data.datasets import BalancedBatchSampler, GeneDataset
+from czi.ai.rbio.model.models import MLPClassifier
 
 
 def set_seed(seed: int = 42):
@@ -17,65 +20,6 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
-
-class MLPClassifier(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int = 64):
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.Linear(input_dim * 2, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1)
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)
-
-
-class GeneDataset(Dataset):
-    def __init__(self, df: pd.DataFrame, name_to_embedding: dict):
-        self.df = df.reset_index(drop=True)
-        self.name_to_embedding = name_to_embedding
-        self.pos_indices = self.df[self.df["label"] == 1].index.tolist()
-        self.neg_indices = self.df[self.df["label"] == 0].index.tolist()
-
-    def __len__(self) -> int:
-        return len(self.df)
-
-    def __getitem__(self, idx: int):
-        row = self.df.iloc[idx]
-        gene_pert = torch.tensor(
-            self.name_to_embedding[row["gene_perturbed"].lower()], dtype=torch.float32
-        )
-        gene_mon = torch.tensor(
-            self.name_to_embedding[row["gene_monitored"].lower()], dtype=torch.float32
-        )
-        label = torch.tensor(row["label"], dtype=torch.float32)
-        return gene_pert, gene_mon, label
-
-
-class BalancedBatchSampler(Sampler):
-    def __init__(self, pos_indices, neg_indices, batch_size):
-        super().__init__()
-        assert batch_size % 2 == 0, "Batch size must be even for balanced sampling"
-        self.pos_indices = pos_indices
-        self.neg_indices = neg_indices
-        self.batch_size = batch_size
-        self.half_batch = batch_size // 2
-
-    def __iter__(self):
-        pos_pool = random.sample(self.pos_indices, len(self.pos_indices))
-        neg_pool = random.sample(self.neg_indices, len(self.neg_indices))
-        min_len = min(len(pos_pool), len(neg_pool))
-
-        for i in range(0, min_len, self.half_batch):
-            pos_batch = pos_pool[i : i + self.half_batch]
-            neg_batch = neg_pool[i : i + self.half_batch]
-            if len(pos_batch) == self.half_batch and len(neg_batch) == self.half_batch:
-                batch = pos_batch + neg_batch
-                random.shuffle(batch)
-                yield batch
-
-    def __len__(self):
-        return min(len(self.pos_indices), len(self.neg_indices)) // self.half_batch
 
 
 def train_model(
