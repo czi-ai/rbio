@@ -17,14 +17,15 @@ from czi.ai.rbio.utils.utils import compute_embeddings_hash
 def test_model(
     model: nn.Module,
     test_df: pd.DataFrame,
-    name_to_embedding: dict,
+    emb_dict: dict,
     output_csv: os.PathLike,
     batch_size: int = 32,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> None:
-    test_dataset = GeneDataset(test_df, name_to_embedding)
+    test_dataset = GeneDataset(test_df, emb_dict)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
+    model = model.to(device)  # Ensure model is on the correct device
     model.eval()
     results = []
     idx = 0  # Track index in test_df to match gene names
@@ -100,7 +101,13 @@ def main(
 
     # Load model and embeddings
     with open(embedding_file, "rb") as f:
-        name_to_embedding = pickle.load(f)
+        emb_dict = pickle.load(f)
+
+    # Verify all genes are in emb_dict
+    genes = pd.unique(test_df[["gene_perturbed", "gene_monitored"]].values.ravel())
+    missing_genes = [gene for gene in genes if gene.lower() not in emb_dict]
+    if missing_genes:
+        raise ValueError(f"Missing embeddings for genes: {missing_genes}")
 
     # Check embeddings hash
     embeddings_hash_path = os.path.join(
@@ -109,7 +116,7 @@ def main(
     if os.path.exists(embeddings_hash_path):
         with open(embeddings_hash_path, "r") as f:
             expected_hash = f.read().strip()
-        current_hash = compute_embeddings_hash(name_to_embedding)
+        current_hash = compute_embeddings_hash(emb_dict)
         if current_hash != expected_hash:
             print(
                 "\033[93mWARNING: Embeddings hash does not match! Results will be random.\033[0m"
@@ -117,7 +124,7 @@ def main(
             print(f"Expected hash: {expected_hash}")
             print(f"Current hash:  {current_hash}")
 
-    input_dim = len(next(iter(name_to_embedding.values())))
+    input_dim = len(next(iter(emb_dict.values())))
     model = MLPClassifier(input_dim)
     model.load_state_dict(torch.load(mlp_model_path, map_location=torch.device("cpu")))
     model.eval()
@@ -126,7 +133,7 @@ def main(
     test_model(
         model,
         test_df,
-        name_to_embedding,
+        emb_dict,
         output_csv=output_csv_path,
         batch_size=batch_size,
     )

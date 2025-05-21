@@ -25,19 +25,19 @@ def set_seed(seed: int = 42):
 
 def train_model(
     train_df: pd.DataFrame,
-    name_to_embedding: dict,
+    emb_dict: dict,
     num_epochs: int = 10,
     batch_size: int = 32,
     lr: float = 1e-3,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> nn.Module:
-    train_dataset = GeneDataset(train_df, name_to_embedding)
+    train_dataset = GeneDataset(train_df, emb_dict)
     sampler = BalancedBatchSampler(
         train_dataset.pos_indices, train_dataset.neg_indices, batch_size
     )
     train_loader = DataLoader(train_dataset, batch_sampler=sampler)
 
-    input_dim = len(next(iter(name_to_embedding.values())))
+    input_dim = len(next(iter(emb_dict.values())))
     model = MLPClassifier(input_dim).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -79,25 +79,14 @@ def embedding_training(
 
     genes = pd.unique(df_training[["gene_perturbed", "gene_monitored"]].values.ravel())
     all_genes = sorted(set(genes))
-    gene_to_index = {gene: i for i, gene in enumerate(all_genes)}
 
-    name_to_embedding = {}
-    missing = 0
-    for gene, idx in gene_to_index.items():
-        try:
-            name_to_embedding[gene.lower()] = np.asarray(
-                emb_dict[gene.lower()], dtype=np.float32
-            )
-        except KeyError:
-            missing += 1
-            print(f"WARNING: Missing embedding for gene {gene} (#{missing})")
-            rand_emb = np.random.randn(len(next(iter(emb_dict.values())))).astype(
-                np.float32
-            )
-            name_to_embedding[gene.lower()] = rand_emb
+    # Verify all genes are in emb_dict
+    missing_genes = [gene for gene in all_genes if gene.lower() not in emb_dict]
+    if missing_genes:
+        raise ValueError(f"Missing embeddings for genes: {missing_genes}")
 
     model = train_model(
-        df_training, name_to_embedding, batch_size=batch_size, num_epochs=num_epochs
+        df_training, emb_dict, batch_size=batch_size, num_epochs=num_epochs
     )
 
     os.makedirs(checkpoint_dir, exist_ok=True)
@@ -106,7 +95,7 @@ def embedding_training(
 
     # Save model and embeddings hash
     torch.save(model.state_dict(), checkpoint_path)
-    embeddings_hash = compute_embeddings_hash(name_to_embedding)
+    embeddings_hash = compute_embeddings_hash(emb_dict)
     with open(embeddings_hash_path, "w") as f:
         f.write(embeddings_hash)
 
