@@ -55,7 +55,7 @@ if [ -n "${PVC_HOME_DIR}" ] && [ -d "${PVC_HOME_DIR}" ]; then
         if [ ! -d "venv" ]; then
             uv venv -n venv --python 3.11 --relocatable
             source venv/bin/activate
-            uv pip install poetry
+            uv pip install 'poetry==2.0.1'
             poetry self add poetry-plugin-export
             poetry export --without-hashes > /tmp/requirements.txt
             uv pip install --quiet -r /tmp/requirements.txt
@@ -72,7 +72,7 @@ else
     rm -rf venv
     uv venv -n venv --python 3.11 --relocatable
     source venv/bin/activate
-    uv pip install poetry
+    uv pip install 'poetry==2.0.1'
     poetry self add poetry-plugin-export
     poetry export --without-hashes > /tmp/requirements.txt
     uv pip install --quiet -r /tmp/requirements.txt
