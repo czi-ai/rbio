@@ -1,6 +1,7 @@
 import re
 
 from torch.nn.functional import softmax
+import numpy as np
 
 from czi.ai.rbio.model.verifiers import call_vcm, verify_gene_info, verify_gene_info_rouge_scores, verify_gene_info_llh
 from czi.ai.rbio.utils.utils import extract_answer, extract_think, extract_gene_info
@@ -68,7 +69,7 @@ def reward_go_info_llh(
     go_ontology_type
 ):
     llh = verify_gene_info_llh(gene, gene2annotations, model, tokenizer, go_ontology_type)
-    return llh
+    return np.exp(llh)
 
 
 def reward_answer_against_label(completion: str, label: bool):

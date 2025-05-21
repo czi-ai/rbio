@@ -187,22 +187,6 @@ def verify_gene_info(
         return 0.0
     gene_annotations = gene2go_annotations[gene]
     for gene_annotation in gene_annotations:
-        print(gene_annotation)
-        if gene_annotation in gene_info_llm:
-            reward += 1
-    return reward / len(gene_annotations)
-
-
-def verify_gene_info(
-    gene_info_llm, 
-    gene, 
-    gene2go_annotations):
-    
-    reward = 0.0
-    if gene not in gene2go_annotations:
-        return 0.0
-    gene_annotations = gene2go_annotations[gene]
-    for gene_annotation in gene_annotations:
         # print(gene_annotation)
         if gene_annotation in gene_info_llm:
             reward += 1
@@ -243,6 +227,7 @@ def verify_gene_info_llh(
         gene_annotation = gene_annotation_f
     elif go_ontology_type == 'P':
         gene_annotation = gene_annotation_p
+        
     input_ids = tokenizer.encode(gene_annotation, return_tensors = 'pt').long()
     input_ids = input_ids.to(model.device)
     with torch.no_grad():

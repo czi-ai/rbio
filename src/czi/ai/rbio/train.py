@@ -183,9 +183,9 @@ class Reward:
                         go_info_llh_gp = reward_go_info_llh(gp, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
                         go_info_llh_gm = reward_go_info_llh(gm, self.gene2go_annotations, self.model, self.tokenizer, self.go_ontology_type)
                     answer_reward = 0.0
-                    if self.go_ontology_type == 'C':
-                        has_cellular_component_reward = has_cellular_component(completion)
-                        has_localizes_mention_reward = has_localizes_mention(completion)
+                    # if self.go_ontology_type == 'C':
+                    #     has_cellular_component_reward = has_cellular_component(completion)
+                    #     has_localizes_mention_reward = has_localizes_mention(completion)
                 
 
             if self.count % 10 == 0:
@@ -216,10 +216,10 @@ class Reward:
                 + reasoning_advantage_reward
                 + go_reward_gp_discrete
                 + go_reward_gm_discrete
-                + 10 * go_reward_gp_rouge1 + 10 * go_reward_gp_rouge2 + 10 * go_reward_gp_rougel
-                + 10 * go_reward_gm_rouge1 + 10 * go_reward_gm_rouge2 + 10 * go_reward_gm_rougel
-                + has_cellular_component_reward 
-                + has_localizes_mention_reward
+                + go_reward_gp_rouge1 + go_reward_gp_rouge2 + go_reward_gp_rougel
+                + go_reward_gm_rouge1 + go_reward_gm_rouge2 + go_reward_gm_rougel
+                # + has_cellular_component_reward 
+                # + has_localizes_mention_reward
                 + go_info_llh_gp
                 + go_info_llh_gm
 
@@ -264,10 +264,11 @@ def train_fn(
     soft_verifiers: list = ['go_ontology'],
     go_ontology_type: str = 'c',
     go_rewards: list = ['discrete'],
+    cell_line: str = "all"
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
-        f"{model_name}_{verifier_type}_verifier_{('').join(soft_verifiers)}_GO_ontology_{go_ontology_type}_{('').join(go_rewards)}_rewards_{num_generations}_generations_{per_device_train_batch_size}_batch_size",
+        f"{model_name}_{verifier_type}_verifier_{('').join(soft_verifiers)}_GO_ontology_{go_ontology_type}_{('').join(go_rewards)}_rewards_{num_generations}_generations_{per_device_train_batch_size}_batch_size_{cell_line}",
     )
     print(f'Logging to mlflow run: {mlflow_run_name}')
 
@@ -325,10 +326,10 @@ def train_fn(
     required=True,
     multiple=True,
     default=[
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/hepg2-train-v0.1.6-go_ontology.csv",
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/jurkat-train-v0.1.6-go_ontology.csv",
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/k562-train-v0.1.6-go_ontology.csv",
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/rpe1-train-v0.1.6-go_ontology.csv",
+        "/mnt/czi-sci-ai/project-rbio-large/datasets/hepg2-train-v0.1.1-go_ontology.csv",
+        # "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv",
+        # "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv",
+        # "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv",
     ],
 )
 @click.option(
@@ -351,7 +352,7 @@ def train_fn(
 @click.option(
     "--soft_verifiers",
     help="List of soft verifiers to use",
-    default=[],
+    default=['go_ontology'],
     multiple=True,
     type = str
 )
@@ -363,14 +364,15 @@ def train_fn(
 @click.option(
     "--go-rewards", 
     help="List of rewards to use", 
-    default=['discrete'], 
+    default=['rouge'], 
     multiple=True,
     type=str
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
-@click.option("--max-steps", help="number of steps to run the model for", default=10000, type=int)
+@click.option("--max-steps", help="number of steps to run the model for", default=200, type=int)
 @click.option("--verifier-type", help="type of verifier, hard or soft", default="soft")
+@click.option("--cell-line", help="name of cell line", default="all")
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -382,7 +384,8 @@ def train(
     verifier_type: str,
     soft_verifiers: List[str],
     go_ontology_type: str,
-    go_rewards: List[str]
+    go_rewards: List[str],
+    cell_line: str
 ):
     go_rewards = list(go_rewards)
     soft_verifiers = list(soft_verifiers)
@@ -398,7 +401,8 @@ def train(
         verifier_type=verifier_type,
         soft_verifiers=soft_verifiers,
         go_ontology_type=go_ontology_type,
-        go_rewards=go_rewards
+        go_rewards=go_rewards, 
+        cell_line=cell_line
     )
 
 
