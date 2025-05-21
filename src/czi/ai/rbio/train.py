@@ -4,11 +4,9 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
 import click
-import mlflow
 import pandas as pd
 from datasets import Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.integrations import MLflowCallback
 from trl import GRPOConfig, GRPOTrainer
 
 from czi.ai.rbio.model.rewards import (
@@ -18,6 +16,7 @@ from czi.ai.rbio.model.rewards import (
     reward_gene_similarity_via_vcm,
 )
 from czi.ai.rbio.model.verifiers import instantiate_vcm
+from czi.ai.rbio.utils.metrics_collector import MetricsCollector
 
 
 def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
@@ -81,6 +80,8 @@ class Reward:
         self.vcm_gene_vocab = None
         self.gene2ensembl_id = None
 
+        self.metrics_collector = MetricsCollector()
+
     def init_vcm_model(self):
         self.vcm_model, self.vcm_gene_vocab, self.gene2ensembl_id = instantiate_vcm(
             self.vcm_verifier_type
@@ -98,6 +99,7 @@ class Reward:
         **kwargs,
     ):
         scores = []
+        metrics_batch = []
 
         for completion, lbl, gp, gm, sys_p, usr_p, tsk in zip(
             completions,
@@ -156,13 +158,19 @@ class Reward:
                 + mention_reward
                 + reasoning_advantage_reward
             )
-            # mlflow.log_metric("format_reward", format_reward, step=self.count)
-            # mlflow.log_metric("mention_reward", mention_reward, step=self.count)
-            # mlflow.log_metric("answer_reward", answer_reward, step=self.count)
-            # mlflow.log_metric("reasoning_adv_reward", reasoning_advantage_reward, step=self.count)
-            # mlflow.log_metric("total_score", total_score, step=self.count)
+
+            metrics = {
+                "format_reward": format_reward,
+                "mention_reward": mention_reward,
+                "answer_reward": answer_reward,
+                "reasoning_adv_reward": reasoning_advantage_reward,
+                "total_score": total_score,
+            }
+            metrics_batch.append(metrics)
 
             scores.append(total_score)
+
+        self.metrics_collector.log_metrics(metrics_batch=metrics_batch, step=self.count)
 
         self.count += 1
 
