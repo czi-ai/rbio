@@ -230,8 +230,20 @@ class Reward:
             metrics = {
                 "format_reward": format_reward,
                 "mention_reward": mention_reward,
-                "answer_reward": answer_reward,
+                "answer_reward": 2 * answer_reward,
                 "reasoning_adv_reward": reasoning_advantage_reward,
+                "go_reward_gp_discrete" : go_reward_gp_discrete, 
+                "go_reward_gm_discrete" : go_reward_gm_discrete, 
+                "go_reward_gp_rouge1" : go_reward_gp_rouge1, 
+                "go_reward_gp_rouge2" : go_reward_gp_rouge2, 
+                "go_reward_gp_rougel" : go_reward_gp_rougel,
+                "go_reward_gp_rouge_all" : go_reward_gp_rouge1 + go_reward_gp_rouge2 + go_reward_gp_rougel,
+                "go_reward_gm_rouge1" : go_reward_gm_rouge1, 
+                "go_reward_gm_rouge2" : go_reward_gm_rouge2, 
+                "go_reward_gm_rougel" : go_reward_gm_rougel,
+                "go_reward_gm_rouge_all" : go_reward_gm_rouge1 + go_reward_gm_rouge2 + go_reward_gm_rougel,
+                "go_info_llh_gp" : go_info_llh_gp, 
+                "go_info_llh_gm" : go_info_llh_gm,
                 "total_score": total_score,
             }
             metrics_batch.append(metrics)
@@ -276,7 +288,7 @@ def train_fn(
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
-        f"{model_name}_{verifier_type}_verifier_{('').join(soft_verifiers)}_GO_ontology_{go_ontology_type}_{('').join(go_rewards)}_rewards_{num_generations}_generations_{per_device_train_batch_size}_batch_size_{cell_line}",
+        f"{model_name}_{verifier_type}_verifier_{('').join(soft_verifiers)}_GO_ontology_{go_ontology_type}_{('').join(go_rewards)}_rewards_{num_generations}_generations_{per_device_train_batch_size}_batch_size_{cell_line}_cell_line",
     )
     print(f'Logging to mlflow run: {mlflow_run_name}')
 
@@ -378,9 +390,9 @@ def train_fn(
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
-@click.option("--max-steps", help="number of steps to run the model for", default=200, type=int)
+@click.option("--max-steps", help="number of steps to run the model for", default=50000, type=int)
 @click.option("--verifier-type", help="type of verifier, hard or soft", default="soft")
-@click.option("--cell-line", help="name of cell line", default="all")
+@click.option("--cell-line", help="name of cell line", default="rpe1")
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
