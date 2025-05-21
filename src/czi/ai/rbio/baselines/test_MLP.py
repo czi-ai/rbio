@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 
 from czi.ai.rbio.data.datasets import GeneDataset
 from czi.ai.rbio.model.models import MLPClassifier
+from czi.ai.rbio.utils.utils import compute_embeddings_hash
 
 
 def test_model(
@@ -72,7 +73,7 @@ def test_model(
     type=click.Path(exists=True),
 )
 @click.option(
-    "--gene-dict-path",
+    "--embedding-file",
     help="Path to the gene embedding dictionary pickle file",
     required=True,
     type=click.Path(exists=True),
@@ -90,7 +91,7 @@ def test_model(
 def main(
     test_dataset_path: os.PathLike,
     mlp_model_path: os.PathLike,
-    gene_dict_path: os.PathLike,
+    embedding_file: os.PathLike,
     output_csv_path: os.PathLike,
     batch_size: int,
 ):
@@ -98,8 +99,19 @@ def main(
     test_df = pd.read_csv(test_dataset_path)
 
     # Load model and embeddings
-    with open(gene_dict_path, "rb") as f:
+    with open(embedding_file, "rb") as f:
         name_to_embedding = pickle.load(f)
+
+    # Check embeddings hash
+    embeddings_hash_path = os.path.join(os.path.dirname(mlp_model_path), "embeddings_hash.txt")
+    if os.path.exists(embeddings_hash_path):
+        with open(embeddings_hash_path, "r") as f:
+            expected_hash = f.read().strip()
+        current_hash = compute_embeddings_hash(name_to_embedding)
+        if current_hash != expected_hash:
+            print("\033[93mWARNING: Embeddings hash does not match! Results will be random.\033[0m")
+            print(f"Expected hash: {expected_hash}")
+            print(f"Current hash:  {current_hash}")
 
     input_dim = len(next(iter(name_to_embedding.values())))
     model = MLPClassifier(input_dim)

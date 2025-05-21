@@ -51,7 +51,10 @@ done
 echo -e "\nTesting phase..."
 for train in "${datasets[@]}"; do
   for test in "${datasets[@]}"; do
-    for embedding_type in "${embedding_types[@]}"; do
+    for i in "${!embedding_types[@]}"; do
+      embedding_type="${embedding_types[$i]}"
+      embedding_file="${EMBEDDING_PATHS[$i]}"
+      
       test_file="${DATASET_BASE}/${test}-test-v0.2.0-no-augmentation.csv"
       output_file="${OUTPUT_BASE}/${train}-${test}-${embedding_type}.csv"
       checkpoint_dir="${CHECKPOINT_BASE}/MLP-${train}-${embedding_type}"
@@ -67,7 +70,7 @@ for train in "${datasets[@]}"; do
       test_cmd="python -m czi.ai.rbio.baselines.test_MLP \
         --test-dataset-path ${test_file} \
         --mlp-model-path ${checkpoint_dir}/mlp_model.pt \
-        --gene-dict-path ${checkpoint_dir}/name_to_embedding.pkl \
+        --embedding-file ${embedding_file} \
         --output-csv-path ${output_file} \
         --batch-size 32"
 

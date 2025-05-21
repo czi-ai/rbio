@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 
 from czi.ai.rbio.data.datasets import BalancedBatchSampler, GeneDataset
 from czi.ai.rbio.model.models import MLPClassifier
+from czi.ai.rbio.utils.utils import compute_embeddings_hash
 
 
 def set_seed(seed: int = 42):
@@ -101,14 +102,16 @@ def embedding_training(
 
     os.makedirs(checkpoint_dir, exist_ok=True)
     checkpoint_path = os.path.join(checkpoint_dir, "mlp_model.pt")
-    name_to_embedding_path = os.path.join(checkpoint_dir, "name_to_embedding.pkl")
+    embeddings_hash_path = os.path.join(checkpoint_dir, "embeddings_hash.txt")
 
+    # Save model and embeddings hash
     torch.save(model.state_dict(), checkpoint_path)
-    with open(name_to_embedding_path, "wb") as f:
-        pickle.dump(name_to_embedding, f)
+    embeddings_hash = compute_embeddings_hash(name_to_embedding)
+    with open(embeddings_hash_path, "w") as f:
+        f.write(embeddings_hash)
 
     print(f"Model checkpoint saved to {checkpoint_path}")
-    print(f"Embedding dictionary saved to {name_to_embedding_path}")
+    print(f"Embeddings hash saved to {embeddings_hash_path}")
 
 
 @click.command()
