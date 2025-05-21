@@ -1,6 +1,6 @@
-import re
 import hashlib
 import json
+import re
 
 
 def extract_answer(text):

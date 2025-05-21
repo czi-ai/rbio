@@ -103,13 +103,17 @@ def main(
         name_to_embedding = pickle.load(f)
 
     # Check embeddings hash
-    embeddings_hash_path = os.path.join(os.path.dirname(mlp_model_path), "embeddings_hash.txt")
+    embeddings_hash_path = os.path.join(
+        os.path.dirname(mlp_model_path), "embeddings_hash.txt"
+    )
     if os.path.exists(embeddings_hash_path):
         with open(embeddings_hash_path, "r") as f:
             expected_hash = f.read().strip()
         current_hash = compute_embeddings_hash(name_to_embedding)
         if current_hash != expected_hash:
-            print("\033[93mWARNING: Embeddings hash does not match! Results will be random.\033[0m")
+            print(
+                "\033[93mWARNING: Embeddings hash does not match! Results will be random.\033[0m"
+            )
             print(f"Expected hash: {expected_hash}")
             print(f"Current hash:  {current_hash}")
 
