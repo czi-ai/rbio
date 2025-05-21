@@ -7,38 +7,10 @@ import numpy as np
 import pandas as pd
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
-
-class MLPClassifier(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int = 64):
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.Linear(input_dim * 2, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1)
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)
-
-
-class GeneDataset(Dataset):
-    def __init__(self, df: pd.DataFrame, name_to_embedding: dict):
-        self.df = df.reset_index(drop=True)
-        self.name_to_embedding = name_to_embedding
-
-    def __len__(self) -> int:
-        return len(self.df)
-
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        row = self.df.iloc[idx]
-        gene_pert = torch.tensor(
-            self.name_to_embedding[row["gene_perturbed"].lower()], dtype=torch.float32
-        )
-        gene_mon = torch.tensor(
-            self.name_to_embedding[row["gene_monitored"].lower()], dtype=torch.float32
-        )
-        label = torch.tensor(row["label"], dtype=torch.float32)
-        return gene_pert, gene_mon, label
+from czi.ai.rbio.data.datasets import GeneDataset
+from czi.ai.rbio.model.models import MLPClassifier
 
 
 def test_model(
