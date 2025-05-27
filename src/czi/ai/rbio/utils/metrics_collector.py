@@ -1,8 +1,10 @@
-import os
-from collections import defaultdict
+import logging
+from typing import Optional
 
 import mlflow
+import torch
 import torch.distributed as dist
+from transformers.integrations.integration_utils import is_mlflow_available
 
 
 class MetricsCollector:
@@ -12,11 +14,11 @@ class MetricsCollector:
     """
 
     def __init__(self):
-        self._mlflow_run_id: str = None
-        self._world_size: int = None
-        self._rank: int = None
+        self._world_size: Optional[int] = None
+        self._rank: Optional[int] = None
+        self._disabled = not is_mlflow_available()
 
-    def setup_mlflow_run(self):
+    def _setup_metrics_collector(self):
         """
         This function needs to be called after the distributed process group is initialized.
         """
@@ -26,33 +28,6 @@ class MetricsCollector:
             """
             self._rank = dist.get_rank()
             self._world_size = dist.get_world_size()
-
-            if self._rank == 0:
-                """
-                We are rank zero, so we need to get the active run id and send it to all other ranks.
-                """
-                active_run = mlflow.active_run()
-                if active_run and active_run.info:
-                    run_id = active_run.info.run_id
-                else:
-                    run_id = None
-
-                assert (
-                    run_id is not None
-                ), "Could not determine MLFlow run id in rank zero"
-
-                for recv_rank in range(1, self._world_size):
-                    dist.send_object_list([run_id], dst=recv_rank)
-
-                self._mlflow_run_id = run_id
-            else:
-                """
-                We are not rank zero, so we need to receive the active run id from rank zero.
-                """
-                sent_objects = [None]
-                dist.recv_object_list(sent_objects, src=0)
-                self._mlflow_run_id = sent_objects[0]
-                mlflow.start_run(run_id=self._mlflow_run_id)
         else:
             """
             We have only one GPU, so we can just use the active run id.
@@ -60,14 +35,40 @@ class MetricsCollector:
             self._rank = 0
             self._world_size = 1
 
+        if self._rank == 0:
             active_run = mlflow.active_run()
-            if active_run and active_run.info:
-                run_id = active_run.info.run_id
-            else:
-                run_id = None
+            if active_run is None:
+                raise RuntimeError(
+                    "MLFlow is not active. Please start an MLFlow run before logging metrics."
+                )
 
-            assert run_id is not None, "Could not determine MLFlow run id in rank zero"
-            self._mlflow_run_id = run_id
+    def _convert_to_tensor(
+        self, metrics_batch: list[dict[str, float]], metrics_keys: list[str]
+    ) -> torch.Tensor:
+        """
+        Convert a batch of metrics into a tensor for fast processing.
+        """
+        tensor_metrics = torch.tensor(
+            [
+                [metrics_row[key] for key in metrics_keys]
+                for metrics_row in metrics_batch
+            ]
+        ).to(torch.cuda.current_device())
+        return tensor_metrics
+
+    def _convert_from_tensor(
+        self, tensor: torch.Tensor, metrics_keys: list[str]
+    ) -> list[dict[str, float]]:
+        """
+        Convert a tensor back into a list of metrics dictionaries.
+        """
+        metrics_batch = []
+        for i in range(tensor.shape[0]):
+            metrics_row = {}
+            for j, key in enumerate(metrics_keys):
+                metrics_row[key] = tensor[i][j].item()
+            metrics_batch.append(metrics_row)
+        return metrics_batch
 
     def log_metrics(self, metrics_batch: list[dict[str, float]], step: int):
         """
@@ -76,41 +77,55 @@ class MetricsCollector:
         Logging as a batch to reduce the overhead of distributed communication.
         """
 
-        if self._mlflow_run_id is None:
-            self.setup_mlflow_run()
+        if self._disabled:
+            logging.warning("MLFlow is not available, metrics will not be logged.")
+            return
+
+        if not metrics_batch:
+            logging.warning("No metrics to log, skipping.")
+            return
+
+        if self._rank is None:
+            self._setup_metrics_collector()
+
+        metrics_keys = sorted(metrics_batch[0].keys())
 
         if self._world_size > 1:
             if self._rank > 0:
                 """
                 We are not rank zero, so we need to send our metrics to rank zero.
                 """
-                dist.send_object_list(metrics_batch, dst=0)
+                sent_metrics = self._convert_to_tensor(metrics_batch, metrics_keys)
+                dist.send(sent_metrics, dst=0)
             else:
                 """
                 We are rank zero, so we need to receive metrics from all other ranks, average them, and send to MLFlow.
                 """
-                all_metrics = [metrics_batch]
+                self_metrics = self._convert_to_tensor(metrics_batch, metrics_keys)
+                all_metrics = [self_metrics]
 
                 for recv_rank in range(1, self._world_size):
-                    sent_objects = [None] * len(metrics_batch)
-                    dist.recv_object_list(sent_objects, src=recv_rank)
-                    all_metrics.append(sent_objects)
+                    recv_metrics = torch.zeros(all_metrics[0].shape).to(
+                        torch.cuda.current_device()
+                    )
+                    dist.recv(recv_metrics, src=recv_rank)
+                    all_metrics.append(recv_metrics)
 
                 assert (
                     len(all_metrics) == self._world_size
                 ), "Not all ranks sent their metrics"
 
-                for index in range(len(metrics_batch)):
-                    averaged_metrics = defaultdict(float)
+                stacked_tensors = torch.stack(all_metrics).to(
+                    torch.cuda.current_device()
+                )
+                averaged_tensors = torch.mean(stacked_tensors, dim=0)
 
-                    for rank in range(self._world_size):
-                        for key in metrics_batch[0].keys():
-                            averaged_metrics[key] += all_metrics[rank][index][key]
+                averaged_metrics = self._convert_from_tensor(
+                    averaged_tensors, metrics_keys
+                )
 
-                    for key in metrics_batch[0].keys():
-                        averaged_metrics[key] /= self._world_size
-
-                    mlflow.log_metrics(averaged_metrics, step=step)
+                for metrics_row in averaged_metrics:
+                    mlflow.log_metrics(metrics_row, step=step)
         else:
             """
             Single GPU case, just log the metrics directly.
