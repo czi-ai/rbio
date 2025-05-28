@@ -13,6 +13,7 @@ from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
     genes_mentioned_in_think,
     reward_answer_against_label,
+    reward_answer_against_softverifier,
     reward_gene_similarity_via_vcm,
 )
 from czi.ai.rbio.model.verifiers import instantiate_vcm
@@ -125,6 +126,13 @@ class Reward:
                     answer_reward = reward_answer_against_label(completion, lbl == 1)
                 elif tsk == "direction_of_change":
                     pass
+            if self.verifier_type == "mlp":
+                if tsk == "differential_expression":
+                    answer_reward = reward_answer_against_softverifier(
+                        completion, gp, gm
+                    )
+                elif tsk == "direction_of_change":
+                    pass
             else:
                 if tsk == "differential_expression":
                     if self.vcm_model is None:
@@ -230,7 +238,6 @@ def train_fn(
             logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,
-            max_steps=10,  # this is for testing purposes; needs to be changed for full training
             run_name=mlflow_run_name,
             datasets=dataset_path,
             model_name=model_name,
@@ -285,7 +292,9 @@ def train_fn(
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
-@click.option("--verifier-type", help="type of verifier, hard or soft", default="soft")
+@click.option(
+    "--verifier-type", help="type of verifier, hard, mlp or soft", default="hard"
+)
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
