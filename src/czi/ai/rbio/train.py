@@ -322,6 +322,7 @@ def train_fn(
             model_name=model_name,
             verifier_type=verifier_type,
             batch_size=per_device_train_batch_size,
+            save_steps=2000
         )
 
     trainer_args.output_dir = str(output_dir)
@@ -346,7 +347,7 @@ def train_fn(
     required=True,
     multiple=True,
     default=[
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/hepg2-train-v0.1.1-go_ontology.csv",
+        "/mnt/czi-sci-ai/project-rbio-large/datasets/rpe1-train-v0.2.0-go_ontology.csv",
         # "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv",
         # "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv",
         # "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv",

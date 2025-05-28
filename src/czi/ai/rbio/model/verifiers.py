@@ -203,7 +203,7 @@ def verify_gene_info_rouge_scores(
         return 0.0, 0.0, 0.0
     gene_annotations = ' '.join(gene2go_annotations[gene])
     scores = scorer.score(gene_info_llm, gene_annotations)
-    rewards = [scores[key].fmeasure for key in ['rouge1', 'rouge1', 'rougeL']]     
+    rewards = [scores[key].fmeasure for key in ['rouge1', 'rouge2', 'rougeL']]     
     return rewards
 
 
