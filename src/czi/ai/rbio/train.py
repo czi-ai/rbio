@@ -204,10 +204,10 @@ def train_fn(
     model_name: str,
     output_dir: os.PathLike,
     resume_from_checkpoint: bool = False,
-    trainer_args: GRPOConfig = None,
     per_device_train_batch_size: int = 4,
     num_generations: int = 4,
     verifier_type: str = "hard",
+    trainer_args: Optional[RbioGRPOConfig] = None,
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
