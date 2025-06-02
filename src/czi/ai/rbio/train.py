@@ -120,13 +120,14 @@ class Reward:
             # )
 
             reasoning_advantage_reward = 0
-
+            answer_reward = 0
+            
             if self.verifier_type == "hard":
                 if tsk == "differential_expression":
                     answer_reward = reward_answer_against_label(completion, lbl == 1)
                 elif tsk == "direction_of_change":
                     pass
-            if self.verifier_type == "mlp":
+            elif self.verifier_type == "mlp":
                 if tsk == "differential_expression":
                     answer_reward = reward_answer_against_softverifier(
                         completion, gp, gm
