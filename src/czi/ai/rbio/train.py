@@ -121,7 +121,7 @@ class Reward:
 
             reasoning_advantage_reward = 0
             answer_reward = 0
-            
+
             if self.verifier_type == "hard":
                 if tsk == "differential_expression":
                     answer_reward = reward_answer_against_label(completion, lbl == 1)
