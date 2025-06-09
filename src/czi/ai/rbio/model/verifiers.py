@@ -13,7 +13,6 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.loggers import CSVLogger
 from torch import nn
 
-
 TF_CFG = os.getenv(
     "TF_CFG",
     "/mnt/czi-sci-ai/project-rbio/transcriptformer/inference_config.yaml",
