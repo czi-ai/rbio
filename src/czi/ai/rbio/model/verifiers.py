@@ -12,8 +12,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.loggers import CSVLogger
 from torch import nn
-from transcriptformer.model.embedding_surgery import change_embedding_layer
-from transcriptformer.tokenizer.vocab import load_vocabs_and_embeddings
+
 
 TF_CFG = os.getenv(
     "TF_CFG",
@@ -72,6 +71,10 @@ def call_vcm(
 
 def instantiate_vcm(model_type):
     if model_type == "transcriptformer":
+        # import here to avoid ImportError when running non-transcripformer verifiers on a machine without transcriptformer installed
+        from transcriptformer.model.embedding_surgery import change_embedding_layer
+        from transcriptformer.tokenizer.vocab import load_vocabs_and_embeddings
+
         gene2ensemble_id = pickle.load(open(GENE2ENSEMBL_ID_FILEPATH, "rb"))
 
         cfg = yaml.load(open(TF_CFG, "r"), Loader=yaml.SafeLoader)
