@@ -243,6 +243,7 @@ def train_fn(
             model_name=model_name,
             verifier_type=verifier_type,
             batch_size=per_device_train_batch_size,
+            save_steps=5000,
         )
 
     trainer_args.output_dir = str(output_dir)
