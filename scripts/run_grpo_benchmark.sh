@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Usage: ./run_grpo_benchmark.sh <checkpoint_folder> <model_name> [batch_size]
-# Example: ./run_grpo_benchmark.sh /mnt/.../checkpoint-40000 Qwen/Qwen2.5-3B-Instruct 512
+# Usage: ./run_grpo_benchmark.sh <checkpoint_folder> <model_name> [batch_size] model_name
+# Example: ./run_grpo_benchmark.sh /mnt/.../checkpoint-40000 Qwen/Qwen2.5-3B-Instruct 512 go_c_discrete
 
 set -e
 
@@ -13,6 +13,7 @@ fi
 CHECKPOINT_PATH="$1"
 MODEL_NAME="$2"
 BATCH_SIZE="${3:-1024}"  # Default to 1024 if not provided
+VERIFICATION_TYPE="$4"
 
 # Normalize model name for filename use (e.g., replace slashes with dashes)
 # Get the model folder name from the checkpoint path (strip checkpoint-xxxxx and get parent dir)
@@ -31,13 +32,14 @@ fi
 DATA_SUBSET=$(echo "$CHECKPOINT_PATH" | sed -n 's|.*/PertQA-DE/\([^/]*\)/.*|\1|p')
 
 # Dataset list
-DATASETS=("rpe1" "jurkat" "k562" "hepg2")
+DATASETS=("rpe1")
+# "jurkat" "k562" "hepg2")
 
 for DATASET in "${DATASETS[@]}"; do
   echo "Running benchmark for dataset: $DATASET"
 
-  INPUT_PATH="/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/${DATASET}-test-v0.1.1-no-augmentation.csv"
-  OUTPUT_PATH="/mnt/czi-sci-ai/project-rbio/benchmarks/${MODEL_FOLDER_NAME}-${DATA_SUBSET}-${STEP_NUMBER}.stats.${DATASET}.csv"
+  INPUT_PATH="/mnt/czi-sci-ai/project-rbio-large/datasets/${DATASET}-test-v0.2.0-go_ontology.csv"
+  OUTPUT_PATH="/mnt/czi-sci-ai/project-rbio-large/benchmarks/${MODEL_FOLDER_NAME}-${DATA_SUBSET}-${STEP_NUMBER}.stats.${DATASET}.${VERIFICATION_TYPE}.csv"
 
   python -m czi.ai.rbio.benchmarks.benchmark_grpo_trained \
     --dataset-path "$INPUT_PATH" \

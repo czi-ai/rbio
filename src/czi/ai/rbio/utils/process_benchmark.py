@@ -5,8 +5,17 @@ from typing import Tuple
 
 import click
 import pandas as pd
-from sklearn.metrics import roc_auc_score
+import numpy as np
 
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    matthews_corrcoef
+)
 
 def calculate_metrics(
     ground_truth: pd.Series, predictions: pd.Series
@@ -21,6 +30,12 @@ def calculate_metrics(
     false_positives = ((~ground_truth_bool) & (predictions_bool)).sum()
     true_negatives = ((~ground_truth_bool) & (~predictions_bool)).sum()
     false_negatives = ((ground_truth_bool) & (~predictions_bool)).sum()
+    
+    # Main classification metrics
+    tpr = true_positives / (true_positives + false_negatives)
+    tnr = true_negatives / (true_negatives + false_positives)
+    balanced_accuracy = (tpr + tnr) / 2
+    mcc = matthews_corrcoef(ground_truth, predictions)
 
     # Calculate AUC ROC
     try:
@@ -54,19 +69,22 @@ def calculate_metrics(
         else 0
     )
 
-    return (
-        true_positives,
-        false_positives,
-        true_negatives,
-        false_negatives,
-        auc_score,
-        accuracy,
-        precision,
-        recall,
-        f1,
-        specificity,
-    )
-
+    return {
+        "TP": int(true_positives),
+        "FP": int(false_positives),
+        "TN": int(true_negatives),
+        "FN": int(false_negatives),
+        "Accuracy": accuracy,
+        "Precision": precision,
+        "Recall": recall,
+        "F1-score": f1,
+        "AUC-ROC": auc_score,
+        "Specificity" : specificity,
+        "TPR": tpr, 
+        "TNR" : tnr, 
+        "Balanced Accuracy" : balanced_accuracy, 
+        "MCC" : mcc
+    }
 
 @click.command()
 @click.option(
@@ -85,23 +103,14 @@ def main(results_csv: str, group_by_target: bool) -> None:
     # Read the CSV file
     all_results = pd.read_csv(results_csv)
 
-    tps = []
-    fps = []
-    tns = []
-    fns = []
-    accuracies = []
-    precisions = []
-    recalls = []
-    f1s = []
-    aucs = []
-    specificities = []
+    metrics_all = []
 
     if group_by_target:
         targets = all_results["gene_monitored"].unique()
 
         for target in targets:
             # Calculate metrics
-            tp, fp, tn, fn, auc, accuracy, precision, recall, f1, specificity = (
+            metrics = (
                 calculate_metrics(
                     all_results[all_results["gene_monitored"] == target][
                         "ground_truth"
@@ -112,55 +121,41 @@ def main(results_csv: str, group_by_target: bool) -> None:
                 )
             )
 
-            tps.append(tp)
-            fps.append(fp)
-            tns.append(tn)
-            fns.append(fn)
-            aucs.append(auc)
-            accuracies.append(accuracy)
-            precisions.append(precision)
-            recalls.append(recall)
-            f1s.append(f1)
-            specificities.append(specificity)
+            metrics_all.append(metrics)
     else:
-        tp, fp, tn, fn, auc, accuracy, precision, recall, f1, specificity = (
+        metrics = (
             calculate_metrics(
                 all_results["ground_truth"],
                 all_results["binary_answer"],
             )
         )
+        metrics_all.append(metrics)
 
-        tps.append(tp)
-        fps.append(fp)
-        tns.append(tn)
-        fns.append(fn)
-        aucs.append(auc)
-        accuracies.append(accuracy)
-        precisions.append(precision)
-        recalls.append(recall)
-        f1s.append(f1)
-        specificities.append(specificity)
+    metrics_keys = metrics_all[0].keys()
+    cum_metrics = {m : [] for m in metrics_keys}
+    for m_dict in metrics_all:
+        for (m, m_val) in m_dict.items():
+            cum_metrics[m].append(m_val)
+    avg_metrics = {m : np.nanmean(cum_metrics[m]) for m in metrics_keys}
+    sum_metrics = {m : np.sum(cum_metrics[m]) for m in metrics_keys}
 
     # Print results
     print("\nBenchmark Results:")
     print("-----------------")
-    print(f"True Positives (TP): {sum(tps)}")
-    print(f"False Positives (FP): {sum(fps)}")
-    print(f"True Negatives (TN): {sum(tns)}")
-    print(f"False Negatives (FN): {sum(fns)}")
-    print(f"\nAccuracy: {mean(accuracies):.4f}")
-    print(f"Precision: {mean(precisions):.4f}")
-    print(f"Recall: {mean(recalls):.4f}")
-    print(f"F1 Score: {mean(f1s):.4f}")
-    print(f"AUC ROC: {mean(aucs):.4f}")
-    print(f"Specificity: {mean(specificities):.4f}")
-
-    # Print metrics in single line with specified format
-    print("\nMetrics in single line:")
-    print(
-        f"{sum(tps)}|{sum(fps)}|{sum(tns)}|{sum(fns)}|{mean(accuracies):.4f}|{mean(precisions):.4f}|{mean(recalls):.4f}|{mean(f1s):.4f}|{mean(specificities):.4f}|{mean(aucs):.4f}"
-    )
-
+    print(f"True Positives (TP): {sum_metrics['TP']}")
+    print(f"False Positives (FP): {sum_metrics['FP']}")
+    print(f"True Negatives (TN): {sum_metrics['TN']}")
+    print(f"False Negatives (FN): {sum_metrics['FN']}")
+    print(f"\nAccuracy: {avg_metrics['Accuracy']:.4f}")
+    print(f"Precision: {avg_metrics['Precision']:.4f}")
+    print(f"Recall: {avg_metrics['Recall']:.4f}")
+    print(f"F1 Score: {avg_metrics['F1-score']:.4f}")
+    print(f"AUC ROC: {avg_metrics['AUC-ROC']:.4f}")
+    print(f"Specificity: {avg_metrics['Specificity']:.4f}")
+    print(f"TPR: {avg_metrics['TPR']:.4f}")
+    print(f"TNR: {avg_metrics['TNR']:.4f}")
+    print(f"Balanced Accuracy: {avg_metrics['Balanced Accuracy']:.4f}")
+    print(f"MCC: {avg_metrics['MCC']:.4f}")
 
 if __name__ == "__main__":
     main()

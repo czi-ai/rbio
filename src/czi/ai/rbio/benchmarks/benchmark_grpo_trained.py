@@ -33,6 +33,7 @@ def benchmark_grpo_trained(
         tokenizer.pad_token = tokenizer.eos_token
 
     dataset = pd.read_csv(dataset_path)
+    # .sample(5000)
     grpo_dataset = RbioDataset(dataset, tokenizer)
     dataloader = DataLoader(grpo_dataset, batch_size=batch_size, shuffle=False)
 
