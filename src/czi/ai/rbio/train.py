@@ -25,19 +25,19 @@ from czi.ai.rbio.model.verifiers import instantiate_vcm, instantiate_go_ontologi
 from czi.ai.rbio.utils.metrics_collector import MetricsCollector
 
 
-def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
+def dataset_gen(dataset, tokenizer, task_type, balance_pos_neg=True):
     dataset_len = dataset.shape[0]
     df_true = dataset
     df_false = dataset
 
-    if balance_pos_neg:
+    if balance_pos_neg and task_type != "annotation":
         df_true = dataset[dataset.label == 1]
         df_false = dataset[dataset.label == 0]
 
         dataset_len = max([len(df_true), len(df_false)]) * 2
 
     for i in range(dataset_len):
-        if balance_pos_neg:
+        if balance_pos_neg and task_type != "annotation":
             if random.random() > 0.5:
                 j = random.randint(0, df_true.shape[0] - 1)
                 dataset_row = df_true.iloc[j]
@@ -54,16 +54,26 @@ def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
         prompt = tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
+        task_type = dataset_row['task']
 
-        return_data = {
-            "prompt": prompt,
-            "label": dataset_row["label"],
-            "gene_perturbed": dataset_row["gene_perturbed"],
-            "gene_monitored": dataset_row["gene_monitored"],
-            "task": dataset_row["task"],
-            "system_prompt": dataset_row["system_prompt"],
-            "user_prompt": dataset_row["user_prompt"],
-        }
+        if task_type == 'perturbation_prediction':
+            return_data = {
+                "prompt": prompt,
+                "label": dataset_row["label"],
+                "gene_perturbed": dataset_row["gene_perturbed"],
+                "gene_monitored": dataset_row["gene_monitored"],
+                "task": dataset_row["task"],
+                "system_prompt": dataset_row["system_prompt"],
+                "user_prompt": dataset_row["user_prompt"],
+            }
+        elif task_type == 'annotation':
+            return_data = {
+                "prompt": prompt,
+                "label": dataset_row["cell_type"],
+                "task": dataset_row["task"],
+                "system_prompt": dataset_row["system_prompt"],
+                "user_prompt": dataset_row["user_prompt"],
+            }
 
         yield return_data
 
@@ -106,7 +116,74 @@ class Reward:
         self.rouge_scorer = instantiate_rouge_scorer()
         # print('Annotations dict', self.gene2go_annotations)
 
-    def compute_reward(
+    def compute_reward_annotation(
+        self,
+        completions: list,
+        label: list,
+        system_prompt: list,
+        user_prompt: list,
+        task: list,
+        **kwargs,
+    ):
+        scores = []
+        metrics_batch = []
+
+        for completion, lbl, sys_p, usr_p, tsk in zip(
+            completions,
+            label,
+            system_prompt,
+            user_prompt,
+            task,
+        ):
+            format_reward = composite_formatting_reward(completion)
+
+            mention_reward = 0.0     
+            reasoning_advantage_reward = 0.0
+            answer_reward = 0.0
+
+            if self.verifier_type == "hard":
+                if tsk == 'annotation':
+                    answer_reward = reward_answer_against_label(completion, lbl)
+            elif self.verifier_type == "soft":
+                if self.vcm_model is None:
+                    self.init_vcm_model()  # lazy instantiation of vcm model
+
+            if self.count % 10 == 0:
+                print(f"system prompt: {sys_p}")
+                print(f"user prompt: {usr_p}")
+                print(f"completion: {completion}")
+                print(f"label: {lbl}")
+                print(f"format reward: {format_reward}")
+                print(f"answer reward: {answer_reward}")
+                # print(f"GO Info LLH GP {go_info_llh_gp}")
+                # print(f"GO Info LLH GM {go_info_llh_gm}")
+                      
+
+            total_score = (
+                format_reward
+                + 2.0 * answer_reward
+                + mention_reward
+                + reasoning_advantage_reward
+            )
+
+            metrics = {
+                "format_reward": format_reward,
+                "mention_reward": mention_reward,
+                "answer_reward": 2 * answer_reward,
+                "reasoning_adv_reward": reasoning_advantage_reward,
+                "total_score": total_score,
+            }
+            metrics_batch.append(metrics)
+
+            scores.append(total_score)
+
+        self.metrics_collector.log_metrics(metrics_batch=metrics_batch, step=self.count)
+
+        self.count += 1
+
+        return scores
+
+    def compute_reward_perturbation(
         self,
         completions: list,
         label: list,
@@ -148,6 +225,8 @@ class Reward:
                     answer_reward = reward_answer_against_label(completion, lbl == 1)
                 elif tsk == "direction_of_change":
                     pass
+                elif tsk == 'annotation':
+                    answer_reward = reward_answer_against_label(completion, lbl)
             elif self.verifier_type == "soft":
                 if "gene_similarity" in self.soft_verifiers:
                     if self.vcm_model is None:
@@ -284,7 +363,8 @@ def train_fn(
     soft_verifiers: list = ['go_ontology'],
     go_ontology_type: str = 'c',
     go_rewards: list = ['discrete'],
-    cell_line: str = "all"
+    cell_line: str = "all",
+    task_type: str = "annotation"
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
@@ -306,7 +386,7 @@ def train_fn(
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto")
 
     dataset = Dataset.from_generator(
-        dataset_gen, gen_kwargs={"dataset": df, "tokenizer": tokenizer}
+        dataset_gen, gen_kwargs={"dataset": df, "tokenizer": tokenizer, "task_type" : task_type}
     )
 
     if trainer_args is None:
@@ -329,9 +409,10 @@ def train_fn(
 
     reward = Reward(model, tokenizer, verifier_type=verifier_type, soft_verifiers=soft_verifiers, go_ontology_type=go_ontology_type, go_rewards=go_rewards)
 
+    # print(dataset.task)
     trainer = GRPOTrainer(
         model=model,
-        reward_funcs=reward.compute_reward,
+        reward_funcs=reward.compute_reward_annotation,
         args=trainer_args,
         train_dataset=dataset,
     )
@@ -347,7 +428,7 @@ def train_fn(
     required=True,
     multiple=True,
     default=[
-        "/mnt/czi-sci-ai/project-rbio-large/datasets/rpe1-train-v0.2.0-go_ontology.csv",
+        "/mnt/czi-sci-ai/project-rbio-large/datasets/tsv2_kidney_top100_suffix.csv",
         # "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv",
         # "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv",
         # "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv",
@@ -391,9 +472,9 @@ def train_fn(
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
-@click.option("--max-steps", help="number of steps to run the model for", default=50000, type=int)
-@click.option("--verifier-type", help="type of verifier, hard or soft", default="soft")
-@click.option("--cell-line", help="name of cell line", default="rpe1")
+@click.option("--max-steps", help="number of steps to run the model for", default=100, type=int)
+@click.option("--verifier-type", help="type of verifier, hard or soft", default="hard")
+@click.option("--cell-line", help="name of cell line", default="tsv2")
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
