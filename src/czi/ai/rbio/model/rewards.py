@@ -7,44 +7,22 @@ from czi.ai.rbio.model.verifiers import call_vcm
 from czi.ai.rbio.utils.utils import extract_answer, extract_think
 
 
-def reward_gene_similarity_via_vcm(
-    gene_perturbed,
-    gene_monitored,
-    completion,
-    task,
-    gene2ensembl_id,
-    vcm_model,
-    gene_vocab,
-):
-    answer = extract_answer(completion)
 
+def reward_answer_against_label(completion: str, label: str, confidence: str) -> float:
+    answer = extract_answer(completion)
     if answer is None:
-        return 0
-
-    p_works_vcm = (
-        call_vcm(
-            gene_perturbed, gene_monitored, gene2ensembl_id, vcm_model, gene_vocab, task
-        )
-        .detach()
-        .numpy()
-    )
-
-    reward = (-1.0 * (answer == True) * p_works_vcm) + (
-        1.0 * (answer == False) * p_works_vcm
-    )
-
-    return reward
-
-
-def reward_answer_against_label(completion: str, label: bool):
-    answer = extract_answer(completion)
-
-    if answer is not None:
-        answer_reward = float(answer == label)
-    else:
-        answer_reward = 0
-
-    return answer_reward
+        return 0.0
+        
+    answer = answer.strip().lower()
+    
+    possible_labels = label.split("|")
+    confidences = [float(c) for c in confidence.split("|")]
+    
+    for label, conf in zip(possible_labels, confidences):
+        if answer == label.strip().lower():
+            return conf
+            
+    return 0.0
 
 
 def reward_answer_against_softverifier(
@@ -121,16 +99,34 @@ def thinks_have_text(text):
     )
 
 
-def genes_mentioned_in_think(text, gene_perturbed, gene_monitored):
-    think_contents = re.findall(
-        r"<think>(.*?)</think>", text, re.DOTALL | re.IGNORECASE
-    )
-
+def keywords_mentioned_in_think(text: str, keywords: str) -> float:
+    """
+    Checks how many keywords from the pipe-separated string are mentioned in the think sections.
+    Returns a score between 0 and 1 representing the ratio of found keywords.
+    """
+    # Split keywords and filter out empty strings
+    keyword_list = [k for k in keywords.split("|") if k]
+    
+    # If no keywords to check, return 1.0
+    if not keyword_list:
+        return 1.0
+    
+    think_contents = extract_think(text)
+    
+    # If no think sections, return 0.0
+    if not think_contents:
+        return 0.0
+    
+    # Count how many keywords are found in any think section
+    found_keywords = 0
     for content in think_contents:
-        score = int(gene_perturbed in content) + int(gene_monitored in content)
-        if score > 0:
-            return score / 2.0  # 0.5 or 1.0
-    return 0.0
+        for keyword in keyword_list:
+            if keyword in content:
+                found_keywords += 1
+                break  # Count each keyword only once
+    
+    # Return the ratio of found keywords to total keywords
+    return found_keywords / len(keyword_list)
 
 
 def no_nested_tags(text):

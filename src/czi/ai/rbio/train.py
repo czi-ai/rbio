@@ -11,16 +11,14 @@ from trl import GRPOConfig, GRPOTrainer
 
 from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
-    genes_mentioned_in_think,
+    keywords_mentioned_in_think,
     reward_answer_against_label,
-    reward_answer_against_softverifier,
-    reward_gene_similarity_via_vcm,
 )
 from czi.ai.rbio.model.verifiers import instantiate_vcm
 from czi.ai.rbio.utils.metrics_collector import MetricsCollector
 
 
-def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
+def differential_expression_dataset_generator(dataset, tokenizer, balance_pos_neg=True):
     dataset_len = dataset.shape[0]
     df_true = dataset
     df_false = dataset
@@ -53,8 +51,9 @@ def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
         return_data = {
             "prompt": prompt,
             "label": dataset_row["label"],
-            "gene_perturbed": dataset_row["gene_perturbed"],
-            "gene_monitored": dataset_row["gene_monitored"],
+            "classes": dataset_row["classes"],
+            "class_confidences": dataset_row["class_confidences"],
+            "keywords": dataset_row["keywords"],
             "task": dataset_row["task"],
             "system_prompt": dataset_row["system_prompt"],
             "user_prompt": dataset_row["user_prompt"],
@@ -92,8 +91,9 @@ class Reward:
         self,
         completions: list,
         label: list,
-        gene_perturbed: list,
-        gene_monitored: list,
+        classes: list,
+        class_confidences: list,
+        keywords: list,
         system_prompt: list,
         user_prompt: list,
         task: list,
@@ -102,18 +102,19 @@ class Reward:
         scores = []
         metrics_batch = []
 
-        for completion, lbl, gp, gm, sys_p, usr_p, tsk in zip(
+        for cmplt, lbl, clss, conf, kw, sys_p, usr_p, tsk in zip(
             completions,
             label,
-            gene_perturbed,
-            gene_monitored,
+            classes,
+            class_confidences,
+            keywords,
             system_prompt,
             user_prompt,
             task,
         ):
-            format_reward = composite_formatting_reward(completion)
+            format_reward = composite_formatting_reward(cmplt)
 
-            mention_reward = genes_mentioned_in_think(completion, gp, gm)
+            mention_reward = keywords_mentioned_in_think(cmplt, kw)
 
             # reasoning_advantage_reward = compute_reasoning_advantage(
             #    self.model, self.tokenizer, sys_p, usr_p, completion, label
@@ -122,40 +123,17 @@ class Reward:
             reasoning_advantage_reward = 0
             answer_reward = 0
 
-            if self.verifier_type == "hard":
-                if tsk == "differential_expression":
-                    answer_reward = reward_answer_against_label(completion, lbl == 1)
-                elif tsk == "direction_of_change":
-                    pass
-            elif self.verifier_type == "mlp":
-                if tsk == "differential_expression":
-                    answer_reward = reward_answer_against_softverifier(
-                        completion, gp, gm
-                    )
-                elif tsk == "direction_of_change":
-                    pass
-            else:
-                if tsk == "differential_expression":
-                    if self.vcm_model is None:
-                        self.init_vcm_model()  # lazy instantiation of vcm model
-
-                    answer_reward = reward_gene_similarity_via_vcm(
-                        gene_perturbed=gp,
-                        gene_monitored=gm,
-                        completion=completion,
-                        task=tsk,
-                        gene2ensembl_id=self.gene2ensembl_id,
-                        vcm_model=self.vcm_model,
-                        gene_vocab=self.vcm_gene_vocab,
-                    )
+            answer_reward = reward_answer_against_label(cmplt, clss, conf)
 
             if self.count % 10 == 0:
+                print(f"task: {tsk}")
                 print(f"system prompt: {sys_p}")
                 print(f"user prompt: {usr_p}")
-                print(f"completion: {completion}")
-                print(f"label: {(lbl == 1)}")
-                print(f"gene perturbed: {gp}")
-                print(f"gene monitored: {gm}")
+                print(f"completion: {cmplt}")
+                print(f"classes: {clss}")
+                print(f"confidences per class: {conf}")
+                print(f"label: {lbl}")
+                print(f"keyworkds: {keywords}")
                 print(f"format reward: {format_reward}")
                 print(f"mention reward: {mention_reward}")
                 print(f"answer reward: {answer_reward}")
@@ -229,7 +207,7 @@ def train_fn(
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto")
 
     dataset = Dataset.from_generator(
-        dataset_gen, gen_kwargs={"dataset": df, "tokenizer": tokenizer}
+        differential_expression_dataset_generator, gen_kwargs={"dataset": df, "tokenizer": tokenizer}
     )
 
     if trainer_args is None:
