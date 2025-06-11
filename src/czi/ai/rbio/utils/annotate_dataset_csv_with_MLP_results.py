@@ -82,11 +82,11 @@ def annotate_dataset_with_mlp(
     
     # Update confidence column with probabilities
     # Format: "1-prob|prob" for each row
-    dataset_df["confidence"] = [f"{1-prob:.4f}|{prob:.4f}" for prob in probabilities]
-    dataset_df["binary_label"] = [int(prob > 0.5) for prob in probabilities]
+    dataset_df["class_confidences"] = [f"{1-prob:.4f}|{prob:.4f}" for prob in probabilities]
+    dataset_df["label"] = [int(prob > 0.5) for prob in probabilities]
     
-    # Ensure label column is "no|yes" for all rows
-    dataset_df["label"] = "no|yes"
+    # Ensure classes column is "no|yes" for all rows
+    dataset_df["classes"] = "no|yes"
     
     # Save annotated dataset
     dataset_df.to_csv(output_path, index=False)

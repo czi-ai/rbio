@@ -14,7 +14,6 @@ from czi.ai.rbio.model.rewards import (
     keywords_mentioned_in_think,
     reward_answer_against_label,
 )
-from czi.ai.rbio.model.verifiers import instantiate_vcm
 from czi.ai.rbio.utils.metrics_collector import MetricsCollector
 
 
@@ -68,24 +67,17 @@ class Reward:
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
         verifier_type: Optional[str] = "hard",
-        vcm_verifier_type: Optional[str] = "transcriptformer",
     ):
         self.model = model
         self.tokenizer = tokenizer
         self.count = 0
-        self.vcm_verifier_type = vcm_verifier_type
+
         self.verifier_type = verifier_type
 
-        self.vcm_model = None
-        self.vcm_gene_vocab = None
         self.gene2ensembl_id = None
 
         self.metrics_collector = MetricsCollector()
 
-    def init_vcm_model(self):
-        self.vcm_model, self.vcm_gene_vocab, self.gene2ensembl_id = instantiate_vcm(
-            self.vcm_verifier_type
-        )
 
     def compute_reward(
         self,
