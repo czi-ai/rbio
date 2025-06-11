@@ -74,6 +74,7 @@ def reward_go_info_llh(
 
 def reward_answer_against_label(completion: str, label: bool):
     answer = extract_answer(completion)
+    # print('label', label, 'answer', answer)
 
     if answer is not None:
         answer_reward = float(answer == label)
@@ -247,27 +248,28 @@ def has_any_tag(text):
     return 1 if re.search(r"</?(think|answer|gene_info)>", text) else 0
 
 
-def composite_formatting_reward(text):
+def composite_formatting_reward(text, include_gene_info = False):
     at_least_one_think = has_at_least_one_think(text)
     at_least_one_gene_info = has_at_least_one_gene_info(text)
     has_tags = has_any_tag(text)
     checks = [
-        at_least_one_think,
-        at_least_one_gene_info,
+        at_least_one_think,  
         low_untagged_ratio(text),
         # is_not_too_long(text),
         has_one_answer(text),
-        answer_after_thinks(text),
-        answer_after_gene_info(text),
+        answer_after_thinks(text),    
         think_after_gene_info(text),
-        gene_infos_have_text(text),
         thinks_have_text(text) * at_least_one_think,
         # no_nested_tags(text) * has_tags,
         has_limited_thinks(text) * at_least_one_think,
-        starts_with_gene_info(text),
         all_tags_properly_closed(text) * has_tags,
         ends_with_answer(text),
     ]
+    if include_gene_info:
+        checks.extend[at_least_one_gene_info,
+            answer_after_gene_info(text),
+            gene_infos_have_text(text),
+            starts_with_gene_info(text)]
     return sum(checks) / len(checks)  # normalized score from 0 to 1
 
 
