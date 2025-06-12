@@ -45,7 +45,6 @@ def create_differential_expression_dataset_csv_dataset(
         "keywords": [],
         "gene_perturbed": [],
         "gene_monitored": [],
-
     }
 
     with open(system_prompt_path, "r") as f:
@@ -72,7 +71,7 @@ def create_differential_expression_dataset_csv_dataset(
             # Convert label to text and create confidence
             classes = "no|yes"
             class_confidences = "1.0|0.0" if label == 0 else "0.0|1.0"
-            
+
             # Create keywords string
             keywords = f"{curr_data['pert']}|{curr_data['gene']}"
 

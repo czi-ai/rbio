@@ -24,7 +24,7 @@ def annotate_dataset_with_mlp(
     """
     Annotates a dataset CSV with MLP model predictions by updating the 'confidence' column
     while keeping the 'label' column as "no|yes".
-    
+
     Args:
         dataset_path: Path to the input dataset CSV
         mlp_model_path: Path to the trained MLP model checkpoint
@@ -35,59 +35,65 @@ def annotate_dataset_with_mlp(
     """
     # Load dataset
     dataset_df = pd.read_csv(dataset_path)
-    
+
     # Load embeddings
     with open(embedding_file, "rb") as f:
         emb_dict = pickle.load(f)
-    
+
     # Verify all genes are in emb_dict
     genes = pd.unique(dataset_df[["gene_perturbed", "gene_monitored"]].values.ravel())
     missing_genes = [gene for gene in genes if gene.lower() not in emb_dict]
     if missing_genes:
         raise ValueError(f"Missing embeddings for genes: {missing_genes}")
-    
+
     # Check embeddings hash
-    embeddings_hash_path = os.path.join(os.path.dirname(mlp_model_path), "embeddings_hash.txt")
+    embeddings_hash_path = os.path.join(
+        os.path.dirname(mlp_model_path), "embeddings_hash.txt"
+    )
     if os.path.exists(embeddings_hash_path):
         with open(embeddings_hash_path, "r") as f:
             expected_hash = f.read().strip()
         current_hash = compute_embeddings_hash(emb_dict)
         if current_hash != expected_hash:
-            print("\033[93mWARNING: Embeddings hash does not match! Results will be random.\033[0m")
+            print(
+                "\033[93mWARNING: Embeddings hash does not match! Results will be random.\033[0m"
+            )
             print(f"Expected hash: {expected_hash}")
             print(f"Current hash:  {current_hash}")
-    
+
     # Load model
     input_dim = len(next(iter(emb_dict.values())))
     model = MLPClassifier(input_dim)
     model.load_state_dict(torch.load(mlp_model_path, map_location=torch.device("cpu")))
     model = model.to(device)
     model.eval()
-    
+
     # Create dataset and dataloader
     dataset = GeneDataset(dataset_df, emb_dict)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    
+
     # Run inference
     probabilities: List[float] = []
     with torch.no_grad():
         for gene_pert, gene_mon, _ in dataloader:
             gene_pert = gene_pert.to(device)
             gene_mon = gene_mon.to(device)
-            
+
             inputs = torch.cat([gene_pert, gene_mon], dim=1)
             logits = model(inputs)
             probs = torch.sigmoid(logits)
             probabilities.extend(probs.cpu().numpy().flatten())
-    
+
     # Update confidence column with probabilities
     # Format: "1-prob|prob" for each row
-    dataset_df["class_confidences"] = [f"{1-prob:.4f}|{prob:.4f}" for prob in probabilities]
+    dataset_df["class_confidences"] = [
+        f"{1-prob:.4f}|{prob:.4f}" for prob in probabilities
+    ]
     dataset_df["label"] = [int(prob > 0.5) for prob in probabilities]
-    
+
     # Ensure classes column is "no|yes" for all rows
     dataset_df["classes"] = "no|yes"
-    
+
     # Save annotated dataset
     dataset_df.to_csv(output_path, index=False)
     print(f"Annotated dataset saved to: {output_path}")
@@ -140,4 +146,4 @@ def main(
 
 
 if __name__ == "__main__":
-    main() 
+    main()

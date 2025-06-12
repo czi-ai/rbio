@@ -60,7 +60,7 @@ def benchmark_pretrained(
                 "completion": response,
                 "answer": answer,
                 "binary_answer": (
-                    1 if answer is True else (0 if answer is False else -1)
+                    1 if answer == "yes" else (0 if answer == "no" else -1)
                 ),
                 "ground_truth": bool_label.item(),
                 "gene_perturbed": gene_perturbed,

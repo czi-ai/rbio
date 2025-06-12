@@ -78,7 +78,6 @@ class Reward:
 
         self.metrics_collector = MetricsCollector()
 
-
     def compute_reward(
         self,
         completions: list,
@@ -199,7 +198,8 @@ def train_fn(
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto")
 
     dataset = Dataset.from_generator(
-        differential_expression_dataset_generator, gen_kwargs={"dataset": df, "tokenizer": tokenizer}
+        differential_expression_dataset_generator,
+        gen_kwargs={"dataset": df, "tokenizer": tokenizer},
     )
 
     if trainer_args is None:
