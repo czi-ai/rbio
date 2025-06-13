@@ -4,7 +4,7 @@ import requests
 from torch.nn.functional import softmax
 
 from czi.ai.rbio.model.verifiers import call_vcm
-from czi.ai.rbio.utils.utils import extract_answer, extract_think, extract_TFs
+from czi.ai.rbio.utils.utils import extract_answer, extract_think
 import os
 import ast
 
