@@ -15,12 +15,16 @@ from czi.ai.rbio.model.rewards import (
     reward_answer_against_label,
     reward_answer_against_softverifier,
     reward_gene_similarity_via_vcm,
+    reward_tf_gene_pmi,
+    reward_tf_gene_prediction_based_on_TFs,
+    reward_tf_TFs_prediction_based_on_marker_genes
 )
-from czi.ai.rbio.model.verifiers import instantiate_vcm
+from czi.ai.rbio.model.verifiers import instantiate_vcm, read_pmis
 from czi.ai.rbio.utils.metrics_collector import MetricsCollector
 
 
-def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
+def dataset_gen(dataset, tokenizer, balance_pos_neg=False):
+    dataset_fields = dataset.columns
     dataset_len = dataset.shape[0]
     df_true = dataset
     df_false = dataset
@@ -49,16 +53,12 @@ def dataset_gen(dataset, tokenizer, balance_pos_neg=True):
         prompt = tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-
+        
         return_data = {
             "prompt": prompt,
-            "label": dataset_row["label"],
-            "gene_perturbed": dataset_row["gene_perturbed"],
-            "gene_monitored": dataset_row["gene_monitored"],
-            "task": dataset_row["task"],
-            "system_prompt": dataset_row["system_prompt"],
-            "user_prompt": dataset_row["user_prompt"],
         }
+        for field in dataset_fields:
+            return_data[field] = dataset_row[field]
 
         yield return_data
 
@@ -69,6 +69,7 @@ class Reward:
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
         verifier_type: Optional[str] = "hard",
+        soft_verifier_type: Optional[str] = "mlp",
         vcm_verifier_type: Optional[str] = "transcriptformer",
     ):
         self.model = model
@@ -76,10 +77,12 @@ class Reward:
         self.count = 0
         self.vcm_verifier_type = vcm_verifier_type
         self.verifier_type = verifier_type
+        self.soft_verifier_type = soft_verifier_type
 
         self.vcm_model = None
         self.vcm_gene_vocab = None
         self.gene2ensembl_id = None
+        self.pmi_info = None
 
         self.metrics_collector = MetricsCollector()
 
@@ -87,6 +90,10 @@ class Reward:
         self.vcm_model, self.vcm_gene_vocab, self.gene2ensembl_id = instantiate_vcm(
             self.vcm_verifier_type
         )
+        
+    def init_pmi_info(self):
+        self.tf_gene_pmis, self.tf_gene2idx = read_pmis()
+        self.tf_idx2gene = {v:k for k, v in self.tf_gene2idx.items()}
 
     def compute_reward(
         self,
@@ -97,12 +104,13 @@ class Reward:
         system_prompt: list,
         user_prompt: list,
         task: list,
+        transcription_factor: list,
         **kwargs,
     ):
         scores = []
         metrics_batch = []
 
-        for completion, lbl, gp, gm, sys_p, usr_p, tsk in zip(
+        for completion, lbl, gp, gm, sys_p, usr_p, tsk, tf in zip(
             completions,
             label,
             gene_perturbed,
@@ -110,6 +118,7 @@ class Reward:
             system_prompt,
             user_prompt,
             task,
+            transcription_factor
         ):
             format_reward = composite_formatting_reward(completion)
 
@@ -121,43 +130,71 @@ class Reward:
 
             reasoning_advantage_reward = 0
             answer_reward = 0
+            soft_reward = 0
 
             if self.verifier_type == "hard":
                 if tsk == "differential_expression":
                     answer_reward = reward_answer_against_label(completion, lbl == 1)
                 elif tsk == "direction_of_change":
                     pass
-            elif self.verifier_type == "mlp":
-                if tsk == "differential_expression":
-                    answer_reward = reward_answer_against_softverifier(
-                        completion, gp, gm
-                    )
-                elif tsk == "direction_of_change":
-                    pass
-            else:
-                if tsk == "differential_expression":
-                    if self.vcm_model is None:
-                        self.init_vcm_model()  # lazy instantiation of vcm model
+            elif self.verifier_type == "soft":
+                if self.soft_verifier_type == "mlp":
+                    if tsk == "differential_expression":
+                        answer_reward = reward_answer_against_softverifier(
+                            completion, gp, gm
+                        )
+                    elif tsk == "direction_of_change":
+                        pass
+                elif self.soft_verifier_type == 'gene_similarity':
+                    if tsk == "differential_expression":
+                        if self.vcm_model is None:
+                            self.init_vcm_model()  # lazy instantiation of vcm model
 
-                    answer_reward = reward_gene_similarity_via_vcm(
+                        answer_reward = reward_gene_similarity_via_vcm(
+                            gene_perturbed=gp,
+                            gene_monitored=gm,
+                            completion=completion,
+                            task=tsk,
+                            gene2ensembl_id=self.gene2ensembl_id,
+                            vcm_model=self.vcm_model,
+                            gene_vocab=self.vcm_gene_vocab,
+                        )
+                elif self.soft_verifier_type == 'transcriptformer_pmi':
+                    if self.pmi_info is None:
+                        self.init_pmi_info()  # lazy instantiation of vcm model
+
+                    soft_reward = reward_tf_gene_pmi(
                         gene_perturbed=gp,
                         gene_monitored=gm,
                         completion=completion,
-                        task=tsk,
-                        gene2ensembl_id=self.gene2ensembl_id,
-                        vcm_model=self.vcm_model,
-                        gene_vocab=self.vcm_gene_vocab,
+                        gene_pmis=self.tf_gene_pmis,
+                        gene2idx=self.tf_gene2idx, 
+                        label=lbl
                     )
+                elif self.soft_verifier_type == 'transcriptformer_TFs_gene_prediction':
+                    soft_reward = reward_tf_gene_prediction_based_on_TFs(
+                        transcription_factor=tf, 
+                        gene_monitored=gm,
+                        completion=completion,
+                        label=lbl
+                    )
+                elif self.soft_verifier_type == 'transcriptformer_marker_genes_TFs_prediction':
+                    soft_reward = reward_tf_TFs_prediction_based_on_marker_genes(
+                        label=lbl,
+                        completion=completion
+                    )
+                    
 
             if self.count % 10 == 0:
                 print(f"system prompt: {sys_p}")
                 print(f"user prompt: {usr_p}")
                 print(f"completion: {completion}")
-                print(f"label: {(lbl == 1)}")
                 print(f"gene perturbed: {gp}")
                 print(f"gene monitored: {gm}")
                 print(f"format reward: {format_reward}")
                 print(f"mention reward: {mention_reward}")
+                print(f"label: {(lbl == 1)}")
+                print(f"soft_reward: {soft_reward}")
                 print(f"answer reward: {answer_reward}")
                 print(f"reasoning advantage: {reasoning_advantage_reward}")
 
@@ -166,6 +203,7 @@ class Reward:
                 + 2.0 * answer_reward
                 + mention_reward
                 + reasoning_advantage_reward
+                + soft_reward
             )
 
             metrics = {
@@ -174,6 +212,7 @@ class Reward:
                 "answer_reward": answer_reward,
                 "reasoning_adv_reward": reasoning_advantage_reward,
                 "total_score": total_score,
+                "soft_reward" : soft_reward,
             }
             metrics_batch.append(metrics)
 
@@ -208,11 +247,13 @@ def train_fn(
     per_device_train_batch_size: int = 4,
     num_generations: int = 4,
     verifier_type: str = "hard",
+    soft_verifier_type: str = "mlp",
+    max_train_steps: int = 50000,
     trainer_args: Optional[RbioGRPOConfig] = None,
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
-        f"{model_name}_{verifier_type}_verifier_{num_generations}_generations_{per_device_train_batch_size}_batch_size",
+        f"{model_name}_{verifier_type}_verifier_{soft_verifier_type}_{num_generations}_generations_{per_device_train_batch_size}_batch_size",
     )
 
     if hasattr(dataset_path, "__iter__"):
@@ -225,6 +266,13 @@ def train_fn(
     else:
         df = pd.read_csv(dataset_path)
 
+    # print(df.columns)
+    fields_to_add = ['gene_perturbed', 'transcription_factor', 'gene_monitored']
+    for field in fields_to_add:
+        if field not in df.columns:
+            df[field] = 'not_present'
+    # df = df.sample(1000)
+    print(df.head())
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto")
 
@@ -244,17 +292,18 @@ def train_fn(
             model_name=model_name,
             verifier_type=verifier_type,
             batch_size=per_device_train_batch_size,
+            max_steps=max_train_steps
         )
 
     trainer_args.output_dir = str(output_dir)
 
-    reward = Reward(model, tokenizer, verifier_type=verifier_type)
+    reward = Reward(model, tokenizer, verifier_type=verifier_type, soft_verifier_type=soft_verifier_type)
 
     trainer = GRPOTrainer(
         model=model,
         reward_funcs=reward.compute_reward,
         args=trainer_args,
-        train_dataset=dataset,
+        train_dataset=dataset
     )
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
@@ -268,10 +317,12 @@ def train_fn(
     required=True,
     multiple=True,
     default=[
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/hepg2-train-v0.1.1-no-augmentation.csv",
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv",
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv",
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv",
+       # PMIs dataset 
+       # '/mnt/czi-sci-ai/project-rbio-40t/datasets/tf_pmi_sig_0.01-train-v0.0.1.csv',
+       # TFs to gene dataset
+       # '/mnt/czi-sci-ai/project-rbio-40t/datasets/tf_TFs2genes-train-v0.0.1.csv',
+       # Marker genes to Transcription Factors
+       # '/mnt/czi-sci-ai/project-rbio-40t/datasets/tf_marker_genes2TFs-train-v0.0.1.csv' 
     ],
 )
 @click.option(
@@ -284,7 +335,7 @@ def train_fn(
     "--checkpoint-dir",
     help="Directory where we save our checkpoints",
     required=True,
-    default="/mnt/czi-sci-ai/project-rbio-large/checkpoints/PertQA-DE/All_Data/1_Rewrite/",
+    default="/mnt/czi-sci-ai/project-rbio-40t/checkpoints/PertQA-DE/All_Data/1_Rewrite/",
 )
 @click.option(
     "--resume",
@@ -293,9 +344,9 @@ def train_fn(
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
-@click.option(
-    "--verifier-type", help="type of verifier, hard, mlp or soft", default="hard"
-)
+@click.option("--verifier-type", help="type of verifier, hard, mlp or soft", default="soft")
+@click.option("--soft-verifier-type", help="type of soft verifier: mlp, gene_similarity, go_ontology,  transcriptformer_pmi, transcriptformer_TFs_gene_prediction, transcriptformer_marker_genes_TFs_prediction", default="transcriptformer_marker_genes_TFs_prediction")
+@click.option("--max-steps", help="number of steps to run the model for", default=50, type=int)
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -304,6 +355,8 @@ def train(
     batch_size: int,
     n_generations: int,
     verifier_type: str,
+    soft_verifier_type: str, 
+    max_steps: int
 ):
     train_fn(
         dataset_path=dataset_path,
@@ -313,6 +366,8 @@ def train(
         per_device_train_batch_size=batch_size,
         num_generations=n_generations,
         verifier_type=verifier_type,
+        soft_verifier_type=soft_verifier_type, 
+        max_train_steps=max_steps
     )
 
 
