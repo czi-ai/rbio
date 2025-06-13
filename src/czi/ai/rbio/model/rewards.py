@@ -1,3 +1,5 @@
+import ast
+import os
 import re
 
 import requests
@@ -5,8 +7,6 @@ from torch.nn.functional import softmax
 
 from czi.ai.rbio.model.verifiers import call_vcm
 from czi.ai.rbio.utils.utils import extract_answer, extract_think
-import os
-import ast
 
 
 def reward_tf_TFs_prediction_based_on_marker_genes(label, completion):
