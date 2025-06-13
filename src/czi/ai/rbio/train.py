@@ -17,7 +17,7 @@ from czi.ai.rbio.model.rewards import (
     reward_gene_similarity_via_vcm,
     reward_tf_gene_pmi,
     reward_tf_gene_prediction_based_on_TFs,
-    reward_tf_TFs_prediction_based_on_marker_genes
+    reward_tf_TFs_prediction_based_on_marker_genes,
 )
 from czi.ai.rbio.model.verifiers import instantiate_vcm, read_pmis
 from czi.ai.rbio.utils.metrics_collector import MetricsCollector
@@ -53,7 +53,7 @@ def dataset_gen(dataset, tokenizer, balance_pos_neg=False):
         prompt = tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-        
+
         return_data = {
             "prompt": prompt,
         }
@@ -90,10 +90,10 @@ class Reward:
         self.vcm_model, self.vcm_gene_vocab, self.gene2ensembl_id = instantiate_vcm(
             self.vcm_verifier_type
         )
-        
+
     def init_pmi_info(self):
         self.tf_gene_pmis, self.tf_gene2idx = read_pmis()
-        self.tf_idx2gene = {v:k for k, v in self.tf_gene2idx.items()}
+        self.tf_idx2gene = {v: k for k, v in self.tf_gene2idx.items()}
 
     def compute_reward(
         self,
@@ -118,7 +118,7 @@ class Reward:
             system_prompt,
             user_prompt,
             task,
-            transcription_factor
+            transcription_factor,
         ):
             format_reward = composite_formatting_reward(completion)
 
@@ -145,7 +145,7 @@ class Reward:
                         )
                     elif tsk == "direction_of_change":
                         pass
-                elif self.soft_verifier_type == 'gene_similarity':
+                elif self.soft_verifier_type == "gene_similarity":
                     if tsk == "differential_expression":
                         if self.vcm_model is None:
                             self.init_vcm_model()  # lazy instantiation of vcm model
@@ -159,7 +159,7 @@ class Reward:
                             vcm_model=self.vcm_model,
                             gene_vocab=self.vcm_gene_vocab,
                         )
-                elif self.soft_verifier_type == 'transcriptformer_pmi':
+                elif self.soft_verifier_type == "transcriptformer_pmi":
                     if self.pmi_info is None:
                         self.init_pmi_info()  # lazy instantiation of vcm model
 
@@ -168,22 +168,23 @@ class Reward:
                         gene_monitored=gm,
                         completion=completion,
                         gene_pmis=self.tf_gene_pmis,
-                        gene2idx=self.tf_gene2idx, 
-                        label=lbl
+                        gene2idx=self.tf_gene2idx,
+                        label=lbl,
                     )
-                elif self.soft_verifier_type == 'transcriptformer_TFs_gene_prediction':
+                elif self.soft_verifier_type == "transcriptformer_TFs_gene_prediction":
                     soft_reward = reward_tf_gene_prediction_based_on_TFs(
-                        transcription_factor=tf, 
+                        transcription_factor=tf,
                         gene_monitored=gm,
                         completion=completion,
-                        label=lbl
-                    )
-                elif self.soft_verifier_type == 'transcriptformer_marker_genes_TFs_prediction':
-                    soft_reward = reward_tf_TFs_prediction_based_on_marker_genes(
                         label=lbl,
-                        completion=completion
                     )
-                    
+                elif (
+                    self.soft_verifier_type
+                    == "transcriptformer_marker_genes_TFs_prediction"
+                ):
+                    soft_reward = reward_tf_TFs_prediction_based_on_marker_genes(
+                        label=lbl, completion=completion
+                    )
 
             if self.count % 10 == 0:
                 print(f"system prompt: {sys_p}")
@@ -212,7 +213,7 @@ class Reward:
                 "answer_reward": answer_reward,
                 "reasoning_adv_reward": reasoning_advantage_reward,
                 "total_score": total_score,
-                "soft_reward" : soft_reward,
+                "soft_reward": soft_reward,
             }
             metrics_batch.append(metrics)
 
@@ -267,10 +268,10 @@ def train_fn(
         df = pd.read_csv(dataset_path)
 
     # print(df.columns)
-    fields_to_add = ['gene_perturbed', 'transcription_factor', 'gene_monitored']
+    fields_to_add = ["gene_perturbed", "transcription_factor", "gene_monitored"]
     for field in fields_to_add:
         if field not in df.columns:
-            df[field] = 'not_present'
+            df[field] = "not_present"
     # df = df.sample(1000)
     print(df.head())
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -292,18 +293,23 @@ def train_fn(
             model_name=model_name,
             verifier_type=verifier_type,
             batch_size=per_device_train_batch_size,
-            max_steps=max_train_steps
+            max_steps=max_train_steps,
         )
 
     trainer_args.output_dir = str(output_dir)
 
-    reward = Reward(model, tokenizer, verifier_type=verifier_type, soft_verifier_type=soft_verifier_type)
+    reward = Reward(
+        model,
+        tokenizer,
+        verifier_type=verifier_type,
+        soft_verifier_type=soft_verifier_type,
+    )
 
     trainer = GRPOTrainer(
         model=model,
         reward_funcs=reward.compute_reward,
         args=trainer_args,
-        train_dataset=dataset
+        train_dataset=dataset,
     )
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
@@ -317,12 +323,12 @@ def train_fn(
     required=True,
     multiple=True,
     default=[
-       # PMIs dataset 
-       # '/mnt/czi-sci-ai/project-rbio-40t/datasets/tf_pmi_sig_0.01-train-v0.0.1.csv',
-       # TFs to gene dataset
-       # '/mnt/czi-sci-ai/project-rbio-40t/datasets/tf_TFs2genes-train-v0.0.1.csv',
-       # Marker genes to Transcription Factors
-       # '/mnt/czi-sci-ai/project-rbio-40t/datasets/tf_marker_genes2TFs-train-v0.0.1.csv' 
+        # PMIs dataset
+        # '/mnt/czi-sci-ai/project-rbio-40t/datasets/tf_pmi_sig_0.01-train-v0.0.1.csv',
+        # TFs to gene dataset
+        # '/mnt/czi-sci-ai/project-rbio-40t/datasets/tf_TFs2genes-train-v0.0.1.csv',
+        # Marker genes to Transcription Factors
+        # '/mnt/czi-sci-ai/project-rbio-40t/datasets/tf_marker_genes2TFs-train-v0.0.1.csv'
     ],
 )
 @click.option(
@@ -344,9 +350,17 @@ def train_fn(
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
-@click.option("--verifier-type", help="type of verifier, hard, mlp or soft", default="soft")
-@click.option("--soft-verifier-type", help="type of soft verifier: mlp, gene_similarity, go_ontology,  transcriptformer_pmi, transcriptformer_TFs_gene_prediction, transcriptformer_marker_genes_TFs_prediction", default="transcriptformer_marker_genes_TFs_prediction")
-@click.option("--max-steps", help="number of steps to run the model for", default=50, type=int)
+@click.option(
+    "--verifier-type", help="type of verifier, hard, mlp or soft", default="soft"
+)
+@click.option(
+    "--soft-verifier-type",
+    help="type of soft verifier: mlp, gene_similarity, go_ontology,  transcriptformer_pmi, transcriptformer_TFs_gene_prediction, transcriptformer_marker_genes_TFs_prediction",
+    default="transcriptformer_marker_genes_TFs_prediction",
+)
+@click.option(
+    "--max-steps", help="number of steps to run the model for", default=50, type=int
+)
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -355,8 +369,8 @@ def train(
     batch_size: int,
     n_generations: int,
     verifier_type: str,
-    soft_verifier_type: str, 
-    max_steps: int
+    soft_verifier_type: str,
+    max_steps: int,
 ):
     train_fn(
         dataset_path=dataset_path,
@@ -366,8 +380,8 @@ def train(
         per_device_train_batch_size=batch_size,
         num_generations=n_generations,
         verifier_type=verifier_type,
-        soft_verifier_type=soft_verifier_type, 
-        max_train_steps=max_steps
+        soft_verifier_type=soft_verifier_type,
+        max_train_steps=max_steps,
     )
 
 

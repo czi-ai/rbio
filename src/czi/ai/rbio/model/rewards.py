@@ -8,23 +8,18 @@ from czi.ai.rbio.utils.utils import extract_answer, extract_think
 import os
 import ast
 
-def reward_tf_TFs_prediction_based_on_marker_genes(
-    label, 
-    completion
-):
+
+def reward_tf_TFs_prediction_based_on_marker_genes(label, completion):
     answer = extract_answer(completion)
     if answer is not None:
         answer_reward = float(answer == label)
     else:
         answer_reward = 0
-    return answer_reward  
-    
+    return answer_reward
+
 
 def reward_tf_gene_prediction_based_on_TFs(
-    transcription_factor, 
-    gene_monitored,
-    completion, 
-    label
+    transcription_factor, gene_monitored, completion, label
 ):
     answer = extract_answer(completion)
     if answer is not None:
@@ -32,29 +27,26 @@ def reward_tf_gene_prediction_based_on_TFs(
     else:
         answer_reward = 0
 
-    return answer_reward        
-    
+    return answer_reward
+
+
 def reward_tf_gene_pmi(
-    gene_perturbed,
-    gene_monitored,
-    completion,
-    gene_pmis,
-    gene2idx, 
-    label
+    gene_perturbed, gene_monitored, completion, gene_pmis, gene2idx, label
 ):
     answer = extract_answer(completion)
 
     if answer is None:
         return 0
-    # pmi = gene_pmis[gene2idx[gene_perturbed], gene2idx[gene_monitored]]               
- 
+    # pmi = gene_pmis[gene2idx[gene_perturbed], gene2idx[gene_monitored]]
+
     # reward = pmi * (answer == True) + (1 - pmi) * (answer == False)
     if answer is not None:
         answer_reward = float(answer == label)
     else:
         answer_reward = 0
 
-    return answer_reward  
+    return answer_reward
+
 
 def reward_gene_similarity_via_vcm(
     gene_perturbed,
