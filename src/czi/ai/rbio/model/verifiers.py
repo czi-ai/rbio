@@ -35,11 +35,9 @@ TF_GENE2IDX = os.getenv(
     "/mnt/czi-sci-ai/project-rbio-40t/ana/rbio/datasets/transcriptformer/gene2idx.pkl",
 )
 
-
 def read_pmis():
     """
     Read pointwise mutual information matrix
-
     MI: matrix holding mutual_information scores from Transcriptformer
         MI[gene_A, gene_B] = mutual info for gene_A, gene_B
     gene2idx: gene2idx mapping from TF
@@ -50,7 +48,6 @@ def read_pmis():
     MI_rewards = (MI - MI.min()) / (MI.max() - MI.min())
     gene2idx = pickle.load(open(TF_GENE2IDX, "rb"))
     return MI_rewards, gene2idx
-
 
 def call_vcm(
     gene_perturbed,
