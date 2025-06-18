@@ -1,23 +1,26 @@
 import re
+
 from torch.nn.functional import softmax
 
 from czi.ai.rbio.utils.utils import extract_answer, extract_think
 
 
-def reward_answer_against_label(completion: str, classes: str, class_confidence: str) -> float:
+def reward_answer_against_label(
+    completion: str, classes: str, class_confidence: str
+) -> float:
     answer = extract_answer(completion)
     if answer is None:
         return 0.0
-        
+
     answer = answer.strip().lower()
-    
+
     possible_classes = classes.split("|")
     confidences = [float(c) for c in class_confidence.split("|")]
-    
+
     for label, conf in zip(possible_classes, confidences):
         if answer == label.strip().lower():
             return conf
-            
+
     return 0.0
 
 
@@ -80,24 +83,24 @@ def keywords_mentioned_in_think(text: str, keywords: str) -> float:
     """
     # Split keywords and filter out empty strings
     keyword_list = [k for k in keywords.split("|") if k]
-    
+
     # If no keywords to check, return 1.0
     if not keyword_list:
         return 1.0
-    
+
     think_contents = extract_think(text)
-    
+
     # If no think sections, return 0.0
     if not think_contents:
         return 0.0
-    
+
     # Count how many keywords are found in any think section
     found_keywords = 0
-   
+
     for keyword in keyword_list:
         if keyword in think_contents:
             found_keywords += 1
-    
+
     # Return the ratio of found keywords to total keywords
     return found_keywords / len(keyword_list)
 
