@@ -1,17 +1,17 @@
-import os
-import pickle
 import json
 import logging
+import os
+import pickle
 
 import click
+import numpy as np
 import pandas as pd
 import torch
 import yaml
-import numpy as np
-from omegaconf import OmegaConf
 
 # --- Transcriptformer imports (must be installed in your environment) ---
 from hydra.utils import instantiate
+from omegaconf import OmegaConf
 
 # --- Environment variable defaults ---
 TF_CFG = os.getenv(
@@ -26,6 +26,7 @@ GENE2ENSEMBL_ID_FILEPATH = os.getenv(
     "GENE2ENSEMBL_ID_FILEPATH",
     "/mnt/czi-sci-ai/project-rbio/transcriptformer/gene2ensembl_ids.pkl",
 )
+
 
 def load_transcriptformer():
     from transcriptformer.model.embedding_surgery import change_embedding_layer
@@ -71,13 +72,10 @@ def load_transcriptformer():
                 cfg.model.inference_config.pretrained_embedding
             ]
         else:
-            pretrained_embedding_paths = (
-                cfg.model.inference_config.pretrained_embedding
-            )
-        model, gene_vocab = change_embedding_layer(
-            model, pretrained_embedding_paths
-        )
+            pretrained_embedding_paths = cfg.model.inference_config.pretrained_embedding
+        model, gene_vocab = change_embedding_layer(model, pretrained_embedding_paths)
     return model, gene_vocab, gene2ensembl_id
+
 
 def get_gene_similarity(
     gene_perturbed: str,
@@ -96,8 +94,12 @@ def get_gene_similarity(
     gene_perturbed_ensembl_id = get_ensembl_id(gene_perturbed)
     gene_monitored_ensembl_id = get_ensembl_id(gene_monitored)
 
-    gene_perturbed_index = gene_vocab.get(gene_perturbed_ensembl_id, gene_vocab["[PAD]"])
-    gene_monitored_index = gene_vocab.get(gene_monitored_ensembl_id, gene_vocab["[PAD]"])
+    gene_perturbed_index = gene_vocab.get(
+        gene_perturbed_ensembl_id, gene_vocab["[PAD]"]
+    )
+    gene_monitored_index = gene_vocab.get(
+        gene_monitored_ensembl_id, gene_vocab["[PAD]"]
+    )
 
     gene_perturbed_index = torch.tensor([gene_perturbed_index]).long()
     gene_monitored_index = torch.tensor([gene_monitored_index]).long()
@@ -108,6 +110,7 @@ def get_gene_similarity(
     cos = nn.CosineSimilarity(dim=1, eps=1e-6)
     gene_similarity = cos(gene_perturbed_emb, gene_monitored_emb)
     return float((gene_similarity[0].item() + 1)) / 2.0
+
 
 @click.command()
 @click.option(
@@ -154,5 +157,6 @@ def main(
     dataset_df.to_csv(output_path, index=False)
     print(f"Annotated dataset saved to: {output_path}")
 
+
 if __name__ == "__main__":
-    main() 
+    main()
