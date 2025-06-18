@@ -9,11 +9,10 @@ import pandas as pd
 import torch
 import yaml
 
-# --- Transcriptformer imports (must be installed in your environment) ---
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
-# --- Environment variable defaults ---
+
 TF_CFG = os.getenv(
     "TF_CFG",
     "/mnt/czi-sci-ai/project-rbio/transcriptformer/inference_config.yaml",
