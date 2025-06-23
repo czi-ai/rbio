@@ -85,6 +85,10 @@ def main(results_csv: str, group_by_target: bool) -> None:
     # Read the CSV file
     all_results = pd.read_csv(results_csv)
 
+    num_undetermined = len(all_results[all_results["binary_answer"] == -1])
+
+    all_results = all_results[all_results["binary_answer"] != -1]
+
     tps = []
     fps = []
     tns = []
@@ -154,6 +158,8 @@ def main(results_csv: str, group_by_target: bool) -> None:
     print(f"F1 Score: {mean(f1s):.4f}")
     print(f"AUC ROC: {mean(aucs):.4f}")
     print(f"Specificity: {mean(specificities):.4f}")
+
+    print(f"Number of unanswered questions: {num_undetermined}")
 
     # Print metrics in single line with specified format
     print("\nMetrics in single line:")
