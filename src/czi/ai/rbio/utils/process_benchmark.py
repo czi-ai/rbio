@@ -35,7 +35,7 @@ def calculate_metrics(
     tpr = true_positives / (true_positives + false_negatives)
     tnr = true_negatives / (true_negatives + false_positives)
     balanced_accuracy = (tpr + tnr) / 2
-    mcc = matthews_corrcoef(ground_truth, predictions)
+    mcc = matthews_corrcoef(ground_truth.to_list(), predictions.to_list())
 
     # Calculate AUC ROC
     try:
@@ -102,6 +102,10 @@ def calculate_metrics(
 def main(results_csv: str, group_by_target: bool) -> None:
     # Read the CSV file
     all_results = pd.read_csv(results_csv)
+    all_results = all_results[~all_results['answer'].isna()]
+    
+    # Check for nan values in answer, which would otherwise get converted to a positive
+    assert(all_results['answer'].isnull().any() == False)
 
     metrics_all = []
 
@@ -126,7 +130,7 @@ def main(results_csv: str, group_by_target: bool) -> None:
         metrics = (
             calculate_metrics(
                 all_results["ground_truth"],
-                all_results["binary_answer"],
+                all_results["answer"],
             )
         )
         metrics_all.append(metrics)
