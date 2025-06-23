@@ -4,18 +4,18 @@ from statistics import mean
 from typing import Tuple
 
 import click
-import pandas as pd
 import numpy as np
-
+import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
     f1_score,
+    matthews_corrcoef,
     precision_score,
     recall_score,
     roc_auc_score,
-    matthews_corrcoef
 )
+
 
 def calculate_metrics(
     ground_truth: pd.Series, predictions: pd.Series
@@ -30,7 +30,7 @@ def calculate_metrics(
     false_positives = ((~ground_truth_bool) & (predictions_bool)).sum()
     true_negatives = ((~ground_truth_bool) & (~predictions_bool)).sum()
     false_negatives = ((ground_truth_bool) & (~predictions_bool)).sum()
-    
+
     # Main classification metrics
     tpr = true_positives / (true_positives + false_negatives)
     tnr = true_negatives / (true_negatives + false_positives)
@@ -79,12 +79,13 @@ def calculate_metrics(
         "Recall": recall,
         "F1-score": f1,
         "AUC-ROC": auc_score,
-        "Specificity" : specificity,
-        "TPR": tpr, 
-        "TNR" : tnr, 
-        "Balanced Accuracy" : balanced_accuracy, 
-        "MCC" : mcc
+        "Specificity": specificity,
+        "TPR": tpr,
+        "TNR": tnr,
+        "Balanced Accuracy": balanced_accuracy,
+        "MCC": mcc,
     }
+
 
 @click.command()
 @click.option(
@@ -102,10 +103,10 @@ def calculate_metrics(
 def main(results_csv: str, group_by_target: bool) -> None:
     # Read the CSV file
     all_results = pd.read_csv(results_csv)
-    all_results = all_results[~all_results['answer'].isna()]
-    
+    all_results = all_results[~all_results["answer"].isna()]
+
     # Check for nan values in answer, which would otherwise get converted to a positive
-    assert(all_results['answer'].isnull().any() == False)
+    assert all_results["answer"].isnull().any() == False
 
     metrics_all = []
 
@@ -114,34 +115,26 @@ def main(results_csv: str, group_by_target: bool) -> None:
 
         for target in targets:
             # Calculate metrics
-            metrics = (
-                calculate_metrics(
-                    all_results[all_results["gene_monitored"] == target][
-                        "ground_truth"
-                    ],
-                    all_results[all_results["gene_monitored"] == target][
-                        "binary_answer"
-                    ],
-                )
+            metrics = calculate_metrics(
+                all_results[all_results["gene_monitored"] == target]["ground_truth"],
+                all_results[all_results["gene_monitored"] == target]["binary_answer"],
             )
 
             metrics_all.append(metrics)
     else:
-        metrics = (
-            calculate_metrics(
-                all_results["ground_truth"],
-                all_results["answer"],
-            )
+        metrics = calculate_metrics(
+            all_results["ground_truth"],
+            all_results["answer"],
         )
         metrics_all.append(metrics)
 
     metrics_keys = metrics_all[0].keys()
-    cum_metrics = {m : [] for m in metrics_keys}
+    cum_metrics = {m: [] for m in metrics_keys}
     for m_dict in metrics_all:
-        for (m, m_val) in m_dict.items():
+        for m, m_val in m_dict.items():
             cum_metrics[m].append(m_val)
-    avg_metrics = {m : np.nanmean(cum_metrics[m]) for m in metrics_keys}
-    sum_metrics = {m : np.sum(cum_metrics[m]) for m in metrics_keys}
+    avg_metrics = {m: np.nanmean(cum_metrics[m]) for m in metrics_keys}
+    sum_metrics = {m: np.sum(cum_metrics[m]) for m in metrics_keys}
 
     # Print results
     print("\nBenchmark Results:")
@@ -160,6 +153,7 @@ def main(results_csv: str, group_by_target: bool) -> None:
     print(f"TNR: {avg_metrics['TNR']:.4f}")
     print(f"Balanced Accuracy: {avg_metrics['Balanced Accuracy']:.4f}")
     print(f"MCC: {avg_metrics['MCC']:.4f}")
+
 
 if __name__ == "__main__":
     main()
