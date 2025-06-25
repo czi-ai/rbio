@@ -125,8 +125,12 @@ class Reward:
             transcription_factor,
         ):
             format_reward = composite_formatting_reward(completion)
-
-            mention_reward = genes_mentioned_in_think(completion, gp, gm)
+            keywords = [gm]
+            if tf != 'not_present':
+                keywords.append(tf)
+            if gp != 'not_present':
+                keywords.append(gp)
+            mention_reward = genes_mentioned_in_think(completion, keywords)
 
             # reasoning_advantage_reward = compute_reasoning_advantage(
             #    self.model, self.tokenizer, sys_p, usr_p, completion, label
@@ -280,7 +284,7 @@ def train_fn(
             df[field] = "not_present"
 
     # df = df.sample(1000)
-    print(df.head())
+    # print(df.head())
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto")
 
@@ -291,7 +295,7 @@ def train_fn(
     if trainer_args is None:
         trainer_args = RbioGRPOConfig(
             output_dir=str(output_dir),
-            logging_steps=250,
+            logging_steps=2500,
             logging_first_step=True,
             per_device_train_batch_size=per_device_train_batch_size,
             num_generations=num_generations,

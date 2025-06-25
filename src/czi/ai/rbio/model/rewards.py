@@ -6,7 +6,7 @@ import requests
 from torch.nn.functional import softmax
 
 from czi.ai.rbio.model.verifiers import call_vcm
-from czi.ai.rbio.utils.utils import extract_answer, extract_think, extract_TFs
+from czi.ai.rbio.utils.utils import extract_answer, extract_think
 import os
 import ast
 
@@ -211,15 +211,17 @@ def thinks_have_text(text):
     )
 
 
-def genes_mentioned_in_think(text, gene_perturbed, gene_monitored):
+def genes_mentioned_in_think(text, keywords):
     think_contents = re.findall(
         r"<think>(.*?)</think>", text, re.DOTALL | re.IGNORECASE
     )
 
     for content in think_contents:
-        score = int(gene_perturbed in content) + int(gene_monitored in content)
+        score = 0.0
+        for keyword in keywords:
+            score += int(keyword in content)
         if score > 0:
-            return score / 2.0  # 0.5 or 1.0
+            return score / len(keywords)  # 0.5 or 1.0
     return 0.0
 
 
