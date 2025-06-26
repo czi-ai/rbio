@@ -53,7 +53,7 @@ def dataset_gen(dataset, tokenizer, balance_pos_neg=False):
         prompt = tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-        
+
         return_data = {
             "prompt": prompt,
         }
@@ -90,10 +90,10 @@ class Reward:
         self.vcm_model, self.vcm_gene_vocab, self.gene2ensembl_id = instantiate_vcm(
             self.vcm_verifier_type
         )
-        
+
     def init_pmi_info(self):
         self.tf_gene_pmis, self.tf_gene2idx = read_pmis()
-        self.tf_idx2gene = {v:k for k, v in self.tf_gene2idx.items()}
+        self.tf_idx2gene = {v: k for k, v in self.tf_gene2idx.items()}
 
     def init_pmi_info(self):
         self.tf_gene_pmis, self.tf_gene2idx = read_pmis()
@@ -126,9 +126,9 @@ class Reward:
         ):
             format_reward = composite_formatting_reward(completion)
             keywords = [gm]
-            if tf != 'not_present':
+            if tf != "not_present":
                 keywords.append(tf)
-            if gp != 'not_present':
+            if gp != "not_present":
                 keywords.append(gp)
             mention_reward = genes_mentioned_in_think(completion, keywords)
 
@@ -193,8 +193,6 @@ class Reward:
                     soft_reward = reward_tf_TFs_prediction_based_on_marker_genes(
                         label=lbl, completion=completion
                     )
-
-                    
 
             if self.count % 10 == 0:
                 print(f"system prompt: {sys_p}")
@@ -305,6 +303,7 @@ def train_fn(
             verifier_type=verifier_type,
             batch_size=per_device_train_batch_size,
             max_steps=max_train_steps,
+            save_steps=10000,
         )
 
     trainer_args.output_dir = str(output_dir)
@@ -320,7 +319,7 @@ def train_fn(
         model=model,
         reward_funcs=reward.compute_reward,
         args=trainer_args,
-        train_dataset=dataset
+        train_dataset=dataset,
     )
 
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
@@ -372,7 +371,6 @@ def train_fn(
 @click.option(
     "--max-steps", help="number of steps to run the model for", default=50, type=int
 )
-
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
