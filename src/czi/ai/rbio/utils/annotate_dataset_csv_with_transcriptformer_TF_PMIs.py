@@ -183,7 +183,10 @@ def main(
         gene_pairs2pmi = significant_gene_pairs
         gene_pairs2pmi.update(least_significant_gene_pairs)
         dataset_df["class_confidences"] = dataset_df.apply(
-            lambda x: compute_soft_class_confidences(x, gene_pairs2pmi), 1
+            lambda x: compute_soft_class_confidences(
+                x, gene_pairs2pmi, ["gene_perturbed", "gene_monitored"]
+            ),
+            1,
         )
         output_filepath = (
             f"{output_dir}/TF_PMIs_sig_{p_significant}-train-v0.0.3_soft.csv"

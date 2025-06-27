@@ -33,7 +33,7 @@ def compute_binary_class_confidences(x):
     return "|".join(class_confidences)
 
 
-def compute_soft_class_confidences(x, gene_pair2pmi):
+def compute_soft_class_confidences(x, gene_pair2scores, fields):
     """
     Computes soft class confidences corresponding to the CSV schema for soft verification
     datasets, given a series x.
@@ -41,26 +41,25 @@ def compute_soft_class_confidences(x, gene_pair2pmi):
     x is assumed to have the following fields:
      - classes: all class labels
      - label: the ground truth class label
-     - gene_perturbed: gene to be perturbed
-     - gene_monitored: gene monitored
+     - fields: list of two fields corresponding to a pair of genes
 
-    The function returns a string correponding to class_confidences for all the classes
+    The function returns a string correponding to class_confidences for all the classes for the pair of genes
 
     Example:
-        gene_perturbed: gene_A
-        gene_monitored: gene_B
+        fields[0]: gene_A
+        fields[1]: gene_B
         classes = yes|no
         label = yes
 
-    Function returns class_confidences = gene_pair2pmi[(gene_A, gene_B)]|0
+    Function returns class_confidences = gene_pair2scores[(gene_A, gene_B)]|0
 
     Args:
         x: dataframe
-        gene2pair2pmi: dictionary corresponding to gene pairs and confidence interaction scores
+        gene_pair2scores: dictionary corresponding to gene pairs and confidence interaction scores
     """
-    gene_A = x["gene_perturbed"]
-    gene_B = x["gene_monitored"]
-    pmi = gene_pair2pmi[(gene_A, gene_B)]
+    gene_A = x[fields[0]]
+    gene_B = x[fields[1]]
+    pmi = gene_pair2scores[(gene_A, gene_B)]
     classes = x["classes"].split("|")
     gt_class = x["label"]
     class_confidences = []
