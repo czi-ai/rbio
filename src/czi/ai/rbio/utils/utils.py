@@ -2,6 +2,7 @@ import hashlib
 import json
 import re
 
+# General system prompt
 SYSTEM_PROMPT = "A conversation between User and Biologist. The user asks a question, and the Biologist solves it. The biologist first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
 
 
