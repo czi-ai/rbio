@@ -4,17 +4,9 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 from sklearn.model_selection import train_test_split
+from czi.ai.rbio.utils.utils import compute_binary_class_confidences
 
 RND_SEED = 42
-
-
-def compute_class_confidences(x):
-    classes = x["classes"].split("|")
-    gt_class = x["label"]
-    class_confidences = []
-    for cl in classes:
-        class_confidences.append(str(int(cl == gt_class)))
-    return "|".join(class_confidences)
 
 
 if __name__ == "__main__":
