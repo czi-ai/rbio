@@ -1,9 +1,11 @@
 [project]
 name = "czi-ai-rbio"
-version = "0.2.0"
+version = "0.3.0"
 description = ""
 authors = [
-    {name = "Fausto Milletari",email = "fmilletari@chanzuckerberg.com"}
+    {name = "Ana-Maria Istrate", email = "aistrate@chanzuckerberg.com"},
+    {name = "Fausto Milletari", email = "fmilletari@chanzuckerberg.com"},
+    {name = "Fabrizio Castrotorres", email = "fcastrotorres@chanzuckerberg.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.9"
