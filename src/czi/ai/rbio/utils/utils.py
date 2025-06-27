@@ -2,6 +2,72 @@ import hashlib
 import json
 import re
 
+SYSTEM_PROMPT = "A conversation between User and Biologist. The user asks a question, and the Biologist solves it. The biologist first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
+
+
+def compute_binary_class_confidences(x):
+    """
+    Computes binary class confidences corresponding to the CSV schema for soft verification
+    datasets, given a series x.
+
+    x is assumed to have the following fields:
+     - classes: all class labels
+     - label: the ground truth class label
+
+    The function returns a string correponding to class_confidences for all the classes
+
+    Example:
+        classes = yes|no
+        label = yes
+
+    Function returns class_confidences = 1|0
+
+    Args:
+        x: dataframe
+    """
+    classes = x["classes"].split("|")
+    gt_class = x["label"]
+    class_confidences = []
+    for cl in classes:
+        class_confidences.append(str(int(cl == gt_class)))
+    return "|".join(class_confidences)
+
+
+def compute_soft_class_confidences(x, gene_pair2pmi):
+    """
+    Computes soft class confidences corresponding to the CSV schema for soft verification
+    datasets, given a series x.
+
+    x is assumed to have the following fields:
+     - classes: all class labels
+     - label: the ground truth class label
+     - gene_perturbed: gene to be perturbed
+     - gene_monitored: gene monitored
+
+    The function returns a string correponding to class_confidences for all the classes
+
+    Example:
+        gene_perturbed: gene_A
+        gene_monitored: gene_B
+        classes = yes|no
+        label = yes
+
+    Function returns class_confidences = gene_pair2pmi[(gene_A, gene_B)]|0
+
+    Args:
+        x: dataframe
+        gene2pair2pmi: dictionary corresponding to gene pairs and confidence interaction scores
+    """
+    gene_A = x["gene_perturbed"]
+    gene_B = x["gene_monitored"]
+    pmi = gene_pair2pmi[(gene_A, gene_B)]
+    classes = x["classes"].split("|")
+    gt_class = x["label"]
+    class_confidences = []
+    for cl in classes:
+        class_confidences.append(str(int(cl == gt_class) * pmi))
+    return "|".join(class_confidences)
+
 
 def extract_answer(text):
     found = re.search(r"<answer>\s*(yes|no)\s*</answer>", text, re.IGNORECASE)
