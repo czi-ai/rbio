@@ -3,8 +3,8 @@ name = "czi-ai-rbio"
 version = "0.3.0"
 description = ""
 authors = [
-    {name = "Ana-Maria Istrate", email = "aistrate@chanzuckerberg.com"} ,
-    {name = "Fausto Milletari", email = "fmilletari@chanzuckerberg.com"} ,
+    {name = "Ana-Maria Istrate", email = "aistrate@chanzuckerberg.com"},
+    {name = "Fausto Milletari", email = "fmilletari@chanzuckerberg.com"},
     {name = "Fabrizio Castrotorres", email = "fcastrotorres@chanzuckerberg.com"}
 ]
 readme = "README.md"
