@@ -154,7 +154,7 @@ def main(results_csv: str, group_by_target: bool) -> None:
     print(f"TNR: {avg_metrics['TNR']:.4f}")
     print(f"Balanced Accuracy: {avg_metrics['Balanced Accuracy']:.4f}")
     print(f"MCC: {avg_metrics['MCC']:.4f}")
-    
+
     print("\nMetrics in single line:")
     print(
         f"{sum_metrics['TP']}|{sum_metrics['FP']}|{sum_metrics['TN']}|{sum_metrics['FN']}|{avg_metrics['Accuracy']:.4f}|{avg_metrics['Precision']:.4f}|{avg_metrics['Recall']:.4f}|{avg_metrics['Specificity']:.4f}|{avg_metrics['AUC-ROC']:.4f}|{avg_metrics['TPR']:.4f}|{avg_metrics['TNR']:.4f}|{avg_metrics['Balanced Accuracy']:.4f}|{avg_metrics['MCC']:.4f}"
