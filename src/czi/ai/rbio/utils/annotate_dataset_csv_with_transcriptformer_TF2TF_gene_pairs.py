@@ -1,11 +1,17 @@
-import pandas as pd
-import pickle as pkl
-import os
-import json
-import numpy as np
 import ast
+import json
+import os
+import pickle as pkl
+
 import click
-from czi.ai.rbio.utils.utils import compute_soft_class_confidences, compute_binary_class_confidences, SYSTEM_PROMPT
+import numpy as np
+import pandas as pd
+
+from czi.ai.rbio.utils.utils import (
+    SYSTEM_PROMPT,
+    compute_binary_class_confidences,
+    compute_soft_class_confidences,
+)
 
 TF_ROOT_DIR = '/mnt/czi-sci-ai/project-rbio-40t/ana/rbio/datasets/transcriptformer/'
 
