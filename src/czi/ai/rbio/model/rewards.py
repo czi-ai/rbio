@@ -2,10 +2,8 @@ import ast
 import os
 import re
 
-import requests
 from torch.nn.functional import softmax
 
-from czi.ai.rbio.model.verifiers import call_vcm
 from czi.ai.rbio.utils.utils import extract_answer, extract_think
 import os
 import ast
@@ -97,66 +95,23 @@ def reward_tf_gene_pmi(
     return answer_reward
 
 
-def reward_gene_similarity_via_vcm(
-    gene_perturbed,
-    gene_monitored,
-    completion,
-    task,
-    gene2ensembl_id,
-    vcm_model,
-    gene_vocab,
-):
-    answer = extract_answer(completion)
-
-    if answer is None:
-        return 0
-
-    p_works_vcm = (
-        call_vcm(
-            gene_perturbed, gene_monitored, gene2ensembl_id, vcm_model, gene_vocab, task
-        )
-        .detach()
-        .numpy()
-    )
-
-    reward = (-1.0 * (answer == True) * p_works_vcm) + (
-        1.0 * (answer == False) * p_works_vcm
-    )
-
-    return reward
-
-
-def reward_answer_against_label(completion: str, label: bool):
-    answer = extract_answer(completion)
-
-    if answer is not None:
-        answer_reward = float(answer == label)
-    else:
-        answer_reward = 0
-
-    return answer_reward
-
-
-def reward_answer_against_softverifier(
-    completion: str, gene_perturbed: str, gene_monitored: str
+def reward_answer_against_label(
+    completion: str, classes: str, class_confidence: str
 ) -> float:
     answer = extract_answer(completion)
+    if answer is None:
+        return 0.0
 
-    try:
-        response = requests.post(
-            "http://localhost:5000/perturbation",
-            json={"Gene_A": gene_perturbed, "Gene_B": gene_monitored},
-            timeout=5.0,
-        )
-        response.raise_for_status()
-        prob = response.json()["perturbation_probability"]
-    except Exception as e:
-        print(f"Request to soft verifier failed: {e}")
-        return 0.0  # conservative fallback
+    answer = answer.strip().lower()
 
-    reward = prob if answer else 1.0 - prob
+    possible_classes = classes.split("|")
+    confidences = [float(c) for c in class_confidence.split("|")]
 
-    return reward
+    for label, conf in zip(possible_classes, confidences):
+        if answer == label.strip().lower():
+            return conf
+
+    return 0.0
 
 
 def has_at_least_one_think(text):
@@ -210,19 +165,33 @@ def thinks_have_text(text):
         else 0
     )
 
+def keywords_mentioned_in_think(text: str, keywords: str) -> float:
+    """
+    Checks how many keywords from the pipe-separated string are mentioned in the think sections.
+    Returns a score between 0 and 1 representing the ratio of found keywords.
+    """
+    # Split keywords and filter out empty strings
+    keyword_list = [k for k in keywords.split("|") if k]
 
-def genes_mentioned_in_think(text, keywords):
-    think_contents = re.findall(
-        r"<think>(.*?)</think>", text, re.DOTALL | re.IGNORECASE
-    )
+    # If no keywords to check, return 1.0
+    if not keyword_list:
+        return 1.0
 
-    for content in think_contents:
-        score = 0.0
-        for keyword in keywords:
-            score += int(keyword in content)
-        if score > 0:
-            return score / len(keywords)  # 0.5 or 1.0
-    return 0.0
+    think_contents = extract_think(text)
+
+    # If no think sections, return 0.0
+    if not think_contents:
+        return 0.0
+
+    # Count how many keywords are found in any think section
+    found_keywords = 0
+
+    for keyword in keyword_list:
+        if keyword in think_contents:
+            found_keywords += 1
+
+    # Return the ratio of found keywords to total keywords
+    return found_keywords / len(keyword_list)
 
 
 def no_nested_tags(text):
