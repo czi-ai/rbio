@@ -12,7 +12,7 @@ import ast
 def reward_answer_against_label(
     completion: str, classes: str, class_confidence: str
 ) -> float:
-    answer = extract_answer(completion)
+    answer = extract_binary_answer(completion)
     if answer is None:
         return 0.0
 
@@ -176,7 +176,7 @@ def composite_formatting_reward(text):
 def reasoning_advantage_reward(
     model, tokenizer, system_prompt, user_prompt, completion, label
 ):
-    answer = extract_answer(completion)
+    answer = extract_binary_answer(completion)
 
     if answer is not None:
         if answer:
