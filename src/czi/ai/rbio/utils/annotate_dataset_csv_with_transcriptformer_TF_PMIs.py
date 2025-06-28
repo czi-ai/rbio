@@ -170,6 +170,7 @@ def main(
     dataset_df["cell_line"] = "tf_3"
     dataset_df["dataset_name"] = "TF_predictions"
     dataset_df["task"] = "soft_verification"
+    dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == 'yes'))
 
     # Generate class confidences and save datasets
     if binary_class_confidences:

@@ -176,6 +176,7 @@ def main(
     dataset_df = dataset_df.drop(columns=["marker_genes"])
 
     dataset_df["label"] = dataset_df["label"].values.tolist()
+    dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == 'yes'))
 
     # Generate class confidences and save datasets
     if binary_class_confidences:
