@@ -5,25 +5,26 @@ import re
 # General system prompt
 SYSTEM_PROMPT = "A conversation between User and Biologist. The user asks a question, and the Biologist solves it. The biologist first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
 
+
 def compute_binary_class_confidences(x):
     """
     Computes binary class confidences corresponding to the CSV schema for soft verification
     datasets, given a series x.
-    
+
     x is assumed to have the following fields:
-     - classes: all class labels 
+     - classes: all class labels
      - label: the ground truth class label
-     
+
     The function returns a string correponding to class_confidences for all the classes
-    
+
     Example:
         classes = yes|no
         label = yes
-        
+
     Function returns class_confidences = 1|0
-    
+
     Args:
-        x: dataframe 
+        x: dataframe
     """
     classes = x["classes"].split("|")
     gt_class = x["label"]
@@ -32,28 +33,29 @@ def compute_binary_class_confidences(x):
         class_confidences.append(str(int(cl == gt_class)))
     return "|".join(class_confidences)
 
+
 def compute_soft_class_confidences(x, gene_pair2scores, fields):
     """
     Computes soft class confidences corresponding to the CSV schema for soft verification
     datasets, given a series x.
-    
+
     x is assumed to have the following fields:
-     - classes: all class labels 
+     - classes: all class labels
      - label: the ground truth class label
      - fields: list of two fields corresponding to a pair of genes
-     
+
     The function returns a string correponding to class_confidences for all the classes for the pair of genes
-    
+
     Example:
         fields[0]: gene_A
         fields[1]: gene_B
         classes = yes|no
         label = yes
-        
+
     Function returns class_confidences = gene_pair2scores[(gene_A, gene_B)]|0
-    
+
     Args:
-        x: dataframe 
+        x: dataframe
         gene_pair2scores: dictionary corresponding to gene pairs and confidence interaction scores
     """
     gene_A = x[fields[0]]

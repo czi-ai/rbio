@@ -176,7 +176,6 @@ def main(
     dataset_df = dataset_df.drop(columns=["marker_genes"])
 
     dataset_df["label"] = dataset_df["label"].values.tolist()
-    dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == 'yes'))
 
     # Generate class confidences and save datasets
     if binary_class_confidences:
@@ -196,6 +195,7 @@ def main(
         output_filepath = (
             f"{output_dir}/TF_MGs2TFs_pmi_{pmi_cutoff}-train-v0.0.3_soft.csv"
         )
+    dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == "yes"))
     dataset_df.to_csv(output_filepath, index=False)
     print(f"Successs! Saved file to {output_filepath}!")
 
