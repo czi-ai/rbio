@@ -5,8 +5,6 @@ import re
 from torch.nn.functional import softmax
 
 from czi.ai.rbio.utils.utils import extract_binary_answer, extract_think
-import os
-import ast
 
 
 def reward_answer_against_label(
@@ -78,6 +76,7 @@ def thinks_have_text(text):
         )
         else 0
     )
+
 
 def keywords_mentioned_in_think(text: str, keywords: str) -> float:
     """
