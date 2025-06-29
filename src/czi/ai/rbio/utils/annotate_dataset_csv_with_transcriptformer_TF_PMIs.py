@@ -108,9 +108,13 @@ def main(
     p_significant = 0.01
 
     num_genes = pmis.shape[0]
-    
-    num_gene_pairs = (num_genes * (num_genes - 1)) / 2 # There are (n choose 2) pairs of genes total
-    topk = int(num_gene_pairs * p_significant) # Out of (n choose 2) pairs, p_significant will be significant interactions
+
+    num_gene_pairs = (
+        num_genes * (num_genes - 1)
+    ) / 2  # There are (n choose 2) pairs of genes total
+    topk = int(
+        num_gene_pairs * p_significant
+    )  # Out of (n choose 2) pairs, p_significant will be significant interactions
     print(
         f"We believe {topk}, or {p_significant}% of gene pairs out of {num_gene_pairs} gene pairs would be significant interactions"
     )
@@ -120,7 +124,7 @@ def main(
     topk_gene_indices1_last, topk_gene_indices2_last = top_k_indices(
         pmis, topk, reverse=True
     )
-    
+
     # Compute cutoff threshold for PMIs
     cutoff = pmis[topk_gene_indices1, topk_gene_indices2].min()
     gene_indicesA = [idx2gene[gene_A_idx] for gene_A_idx in topk_gene_indices1]
@@ -156,7 +160,6 @@ def main(
     # Save least topk significant pairs
     with open(TF_LEAST_SIGNIFICANT_GENE_PAIRS, "wb") as f:
         pickle.dump(least_significant_gene_pairs, f)
-
 
     # Dataset with positive labels
     dataset_df_sig = create_pmis_df(gene_indicesA, gene_indicesB, label="yes")
