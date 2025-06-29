@@ -2,8 +2,45 @@ import hashlib
 import json
 import re
 
+import numpy as np
+
 # General system prompt
 SYSTEM_PROMPT = "A conversation between User and Biologist. The user asks a question, and the Biologist solves it. The biologist first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
+
+
+def normalize_scores(m, sig_threshold, reverse=False):
+    """
+    Normalizes a matrix m to the interval [0, 1] such that values at a given signifcance threshold
+    sig_threshold correspond to values at 0.5 in the unit-normalized matrix m_norm
+
+    No assumption are made on the range of values in m or on sig_threshold
+
+    Args:
+        m: matrix to normalize
+        sig_threshold: significance threshold in
+    """
+    m_norm = np.zeros(m.shape)
+    m_min = m.min()
+    m_max = m.max()
+    m_below_mask = m < sig_threshold
+    m_above_mask = m >= sig_threshold
+    m_below_norm = 0.5 * (m[m_below_mask] - m_min) / (sig_threshold - m_min)
+    m_above_norm = 0.5 + 0.5 * (m[m_above_mask] - sig_threshold) / (
+        m_max - sig_threshold
+    )
+
+    # Adjust for when values lower than sig_threshold should map to [0.5, 1],
+    # rather than values > sig_threshold
+    if reverse:
+        m_above_norm -= 0.5
+        m_below_norm += 0.5
+
+    m_norm[m_below_mask] = m_below_norm
+    m_norm[m_above_mask] = m_above_norm
+    print(
+        f"Matrix normalized. Values < {sig_threshold:0.4f} mapped to [{m_norm[m_below_mask].min():0.2f}, {m_norm[m_below_mask].max():0.2f}]. Values >= {sig_threshold:0.4f} mapped to [{m_norm[m_above_mask].min():0.2f}, {m_norm[m_above_mask].max():0.2f}] | m_norm_min: {m_norm.min():0.4f}. m_norm_max: {m_norm.max():0.4f}"
+    )
+    return m_norm
 
 
 def compute_binary_class_confidences(x):

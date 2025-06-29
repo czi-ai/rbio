@@ -11,6 +11,7 @@ from czi.ai.rbio.utils.utils import (
     SYSTEM_PROMPT,
     compute_binary_class_confidences,
     compute_soft_class_confidences,
+    normalize_scores,
 )
 
 TF_ROOT_DIR = "/mnt/czi-sci-ai/project-rbio-40t/ana/rbio/datasets/transcriptformer/"
@@ -84,6 +85,8 @@ def main(
     # These values were precomputed ahead of time
     tfs = pkl.load(open(f"{TF_ROOT_DIR}p_values_tfs.pkl", "rb"))
     p_values = pkl.load(open(f"{TF_ROOT_DIR}p_values.pkl", "rb"))
+    p_values_norm = normalize_scores(p_values, p_value, reverse=True)
+
     print(
         f"There are {len(tfs)} transcription factors and a total of {len(gene_vocab)} total genes in the vocab"
     )
@@ -94,9 +97,10 @@ def main(
     num_genes = p_values.shape[1]
     for tf_idx, tf in enumerate(tfs):
         tf_p_values = p_values[tf_idx]
+        tf_p_values_norm = p_values_norm[tf_idx]
         for gene_idx in range(num_genes):
             gene_name = idx2gene[gene_idx]
-            tf_pairs2p_vals[(tf, gene_name)] = tf_p_values[gene_idx]
+            tf_pairs2p_vals[(tf, gene_name)] = tf_p_values_norm[gene_idx]
         tf2sig_interactions[tf] = [
             idx2gene[x[0]] for x in np.argwhere(tf_p_values <= p_value)
         ]
@@ -146,7 +150,7 @@ def main(
             compute_binary_class_confidences, 1
         )
         output_filepath = (
-            f"{output_dir}/TF_TFs2genes_p_{p_value}-train-v0.0.3_binary.csv"
+            f"{output_dir}/TF_TFs2genes_p_{p_value}-train-v0.0.4_binary.csv"
         )
     else:
         dataset_df["class_confidences"] = dataset_df.apply(
@@ -155,7 +159,7 @@ def main(
             ),
             1,
         )
-        output_filepath = f"{output_dir}/TF_TFs2genes_p_{p_value}-train-v0.0.3_soft.csv"
+        output_filepath = f"{output_dir}/TF_TFs2genes_p_{p_value}-train-v0.0.4_soft.csv"
     dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == "yes"))
     dataset_df.to_csv(output_filepath, index=False)
     print(f"Successs! Saved file to {output_filepath}!")

@@ -11,6 +11,7 @@ from czi.ai.rbio.utils.utils import (
     SYSTEM_PROMPT,
     compute_binary_class_confidences,
     compute_soft_class_confidences,
+    normalize_scores,
 )
 
 TF_ROOT_DIR = "/mnt/czi-sci-ai/project-rbio-40t/ana/rbio/datasets/transcriptformer/"
@@ -113,6 +114,8 @@ def main(
     # Normalize PMIs
     pmis = (pmis - pmis.min()) / (pmis.max() - pmis.min())
 
+    pmis_n = normalize_scores(pmis, pmi_cutoff)
+
     filtered_cell_types = pkl.load(open(f"{TF_ROOT_DIR}sorted_cell_types.pkl", "rb"))
     sorted_tfs = pkl.load(open(f"{TF_ROOT_DIR}sorted_tfs.pkl", "rb"))
 
@@ -125,6 +128,7 @@ def main(
 
     for cell_type_idx, cell_type in enumerate(filtered_cell_types):
         cell_type_pmis = pmis[cell_type_idx]
+        cell_type_pmis_n = pmis_n[cell_type_idx]
         sig_cell_type_pmis = sorted_tfs[
             np.argwhere(cell_type_pmis > pmi_cutoff)
         ].squeeze()
@@ -132,8 +136,8 @@ def main(
             np.argwhere(cell_type_pmis <= pmi_cutoff)
         ].squeeze()
 
-        for tf, tf_pmi in zip(sorted_tfs, cell_type_pmis):
-            cell_type2tf_pmi[(cell_type, tf)] = tf_pmi
+        for tf, tf_pmi, tf_pmi_n in zip(sorted_tfs, cell_type_pmis, cell_type_pmis_n):
+            cell_type2tf_pmi[(cell_type, tf)] = tf_pmi_n
 
         if len(not_sig_type_pmis) > min_not_sig_interactions_to_include:
             not_sig_type_pmis = np.random.choice(
@@ -183,7 +187,7 @@ def main(
             compute_binary_class_confidences, 1
         )
         output_filepath = (
-            f"{output_dir}/TF_MGs2TFs_pmi_{pmi_cutoff}-train-v0.0.3_binary.csv"
+            f"{output_dir}/TF_MGs2TFs_pmi_{pmi_cutoff}-train-v0.0.4_binary.csv"
         )
     else:
         dataset_df["class_confidences"] = dataset_df.apply(
@@ -193,7 +197,7 @@ def main(
             1,
         )
         output_filepath = (
-            f"{output_dir}/TF_MGs2TFs_pmi_{pmi_cutoff}-train-v0.0.3_soft.csv"
+            f"{output_dir}/TF_MGs2TFs_pmi_{pmi_cutoff}-train-v0.0.4_soft.csv"
         )
     dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == "yes"))
     dataset_df.to_csv(output_filepath, index=False)

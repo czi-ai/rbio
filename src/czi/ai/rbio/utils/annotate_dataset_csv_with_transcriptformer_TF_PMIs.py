@@ -10,6 +10,7 @@ from czi.ai.rbio.utils.utils import (
     SYSTEM_PROMPT,
     compute_binary_class_confidences,
     compute_soft_class_confidences,
+    normalize_scores,
 )
 
 TF_GENE_PMIS = os.getenv(
@@ -102,14 +103,14 @@ def main(
     # Load TF Geneidx vocab
     gene_vocab = pickle.load(open(TF_GENE2IDX, "rb"))
     idx2gene = {v: k for k, v in gene_vocab.items()}
-    pmis = (pmis - pmis.min()) / (pmis.max() - pmis.min())
 
     # Signficance threshold for gene pairs - we assume the top 0.01 pairs will be significant
     p_significant = 0.01
 
     num_genes = pmis.shape[0]
-    num_gene_pairs = (num_genes * (num_genes - 1)) / 2
-    topk = int(num_gene_pairs * p_significant)
+    
+    num_gene_pairs = (num_genes * (num_genes - 1)) / 2 # There are (n choose 2) pairs of genes total
+    topk = int(num_gene_pairs * p_significant) # Out of (n choose 2) pairs, p_significant will be significant interactions
     print(
         f"We believe {topk}, or {p_significant}% of gene pairs out of {num_gene_pairs} gene pairs would be significant interactions"
     )
@@ -119,6 +120,24 @@ def main(
     topk_gene_indices1_last, topk_gene_indices2_last = top_k_indices(
         pmis, topk, reverse=True
     )
+    
+    # Compute cutoff threshold for PMIs
+    cutoff = pmis[topk_gene_indices1, topk_gene_indices2].min()
+    gene_indicesA = [idx2gene[gene_A_idx] for gene_A_idx in topk_gene_indices1]
+    gene_indicesB = [idx2gene[gene_B_idx] for gene_B_idx in topk_gene_indices2]
+
+    gene_indicesA_least = [
+        idx2gene[gene_A_idx] for gene_A_idx in topk_gene_indices1_last
+    ]
+    gene_indicesB_least = [
+        idx2gene[gene_B_idx] for gene_B_idx in topk_gene_indices2_last
+    ]
+    genes = gene_vocab.keys()
+    print(f"Minimum PMI cutoff for significance of gene pairs is {cutoff}")
+
+    # Normalize PMIs scores to [0, 1] interval such that cutoff corresponds to 0.5
+    pmis = normalize_scores(pmis, cutoff)
+
     significant_gene_pairs = {
         (idx2gene[gene_A_idx], idx2gene[gene_B_idx]): pmis[gene_A_idx, gene_B_idx]
         for gene_A_idx, gene_B_idx in zip(topk_gene_indices1, topk_gene_indices2)
@@ -138,19 +157,6 @@ def main(
     with open(TF_LEAST_SIGNIFICANT_GENE_PAIRS, "wb") as f:
         pickle.dump(least_significant_gene_pairs, f)
 
-    # Compute cutoff threshold for PMIs
-    cutoff = pmis[topk_gene_indices1, topk_gene_indices2].min()
-    gene_indicesA = [idx2gene[gene_A_idx] for gene_A_idx in topk_gene_indices1]
-    gene_indicesB = [idx2gene[gene_B_idx] for gene_B_idx in topk_gene_indices2]
-
-    gene_indicesA_least = [
-        idx2gene[gene_A_idx] for gene_A_idx in topk_gene_indices1_last
-    ]
-    gene_indicesB_least = [
-        idx2gene[gene_B_idx] for gene_B_idx in topk_gene_indices2_last
-    ]
-    genes = gene_vocab.keys()
-    print(f"Minimum PMI cutoff for significance of gene pairs is {cutoff}")
 
     # Dataset with positive labels
     dataset_df_sig = create_pmis_df(gene_indicesA, gene_indicesB, label="yes")
@@ -177,7 +183,7 @@ def main(
             compute_binary_class_confidences, 1
         )
         output_filepath = (
-            f"{output_dir}/TF_PMIs_sig_{p_significant}-train-v0.0.3_binary.csv"
+            f"{output_dir}/TF_PMIs_sig_{p_significant}-train-v0.0.4_binary.csv"
         )
     else:
         gene_pairs2pmi = significant_gene_pairs
@@ -189,7 +195,7 @@ def main(
             1,
         )
         output_filepath = (
-            f"{output_dir}/TF_PMIs_sig_{p_significant}-train-v0.0.3_soft.csv"
+            f"{output_dir}/TF_PMIs_sig_{p_significant}-train-v0.0.4_soft.csv"
         )
     dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == "yes"))
     dataset_df.to_csv(output_filepath, index=False)
