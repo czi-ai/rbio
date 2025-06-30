@@ -1,102 +1,39 @@
 import re
 
 from torch.nn.functional import softmax
-import numpy as np
 
-from czi.ai.rbio.model.verifiers import call_vcm, verify_gene_info, verify_gene_info_rouge_scores, verify_gene_info_llh
-from czi.ai.rbio.utils.utils import extract_answer, extract_think, extract_gene_info
+from czi.ai.rbio.utils.utils import extract_answer, extract_think
 
 
-def reward_gene_similarity_via_vcm(
-    gene_perturbed,
-    gene_monitored,
-    completion,
-    task,
-    gene2ensembl_id,
-    vcm_model,
-    gene_vocab,
-):
+def reward_answer_against_label(
+    completion: str, classes: str, class_confidence: str
+) -> float:
     answer = extract_answer(completion)
-
     if answer is None:
-        return 0
+        return 0.0
 
-    p_works_vcm = (
-        call_vcm(
-            gene_perturbed, gene_monitored, gene2ensembl_id, vcm_model, gene_vocab, task
-        )
-        .detach()
-        .numpy()
-    )
+    answer = answer.strip().lower()
 
-    reward = (1.0 * (answer == True) * p_works_vcm) + (
-        -1.0 * (answer == False) * p_works_vcm
-    )
+    possible_classes = classes.split("|")
+    confidences = [float(c) for c in class_confidence.split("|")]
 
-    return reward
+    for label, conf in zip(possible_classes, confidences):
+        if answer == label.strip().lower():
+            return conf
 
-def reward_gene_information_go_ontology_mention(
-    gene,
-    completion, 
-    gene2annotations
-):
-    gene_info_llm = extract_gene_info(completion, gene)
-    if gene_info_llm == 'No information.':
-        reward = 0
-    else:
-        reward = verify_gene_info(gene_info_llm, gene, gene2annotations)
-    return reward
-
-def reward_gene_information_go_ontology_rouge_score(
-    gene,
-    completion, 
-    gene2annotations,
-    scorer
-):
-    gene_info_llm = extract_gene_info(completion, gene)
-    if gene_info_llm == 'No information.':
-        reward1, reward2, reward3 = 0, 0, 0
-    else:
-        reward1, reward2, reward3 = verify_gene_info_rouge_scores(gene_info_llm, gene, gene2annotations, scorer)
-    return reward1, reward2, reward3
-
-
-def reward_go_info_llh(
-    gene,
-    gene2annotations,
-    model, 
-    tokenizer,
-    go_ontology_type
-):
-    llh = verify_gene_info_llh(gene, gene2annotations, model, tokenizer, go_ontology_type)
-    return np.exp(llh)
-
-
-def reward_answer_against_label(completion: str, label: bool):
-    answer = extract_answer(completion)
-    # print('label', label, 'answer', answer)
-
-    if answer is not None:
-        answer_reward = float(answer == label)
-    else:
-        answer_reward = 0
-
-    return answer_reward
+    return 0.0
 
 
 def has_at_least_one_think(text):
     return 1 if re.search(r"<think>.*?</think>", text, re.DOTALL) else 0
 
-def has_at_least_one_gene_info(text):
-    return 1 if re.search(r"<gene_info>.*?</gene_info>", text, re.DOTALL) else 0
-
 
 def low_untagged_ratio(text):
-    text_no_tags = re.sub(r"</?(think|answer|gene_info)>", "", text)
+    text_no_tags = re.sub(r"</?(think|answer)>", "", text)
     total_words = len(re.findall(r"\b\w+\b", text_no_tags))
 
     tagged_words = 0
-    for tag in re.findall(r"<(think|answer|gene_info)>(.*?)</\1>", text, re.DOTALL):
+    for tag in re.findall(r"<(think|answer)>(.*?)</\1>", text, re.DOTALL):
         tagged_words += len(re.findall(r"\b\w+\b", tag[1]))
     ratio = tagged_words / total_words if total_words else 0
 
@@ -106,9 +43,6 @@ def low_untagged_ratio(text):
 def starts_with_think(text):
     return 1 if re.match(r"^\s*<think>", text) else 0
 
-def starts_with_gene_info(text):
-    return 1 if re.match(r"^\s*<gene_info>", text) else 0
-
 
 def is_not_too_long(text):
     word_count = len(re.findall(r"\b\w+\b", text))
@@ -117,14 +51,6 @@ def is_not_too_long(text):
 
 def has_one_answer(text):
     matches = re.findall(r"<answer>.*?</answer>", text, re.DOTALL)
-    return 1 if len(matches) == 1 else 0
-
-def has_cellular_component(text):
-    matches = re.findall(r"<gene_info>.*?cellular.*?(component|location|localization).*?</gene_info>", text, re.DOTALL)
-    return 1 if len(matches) == 1 else 0
-
-def has_localizes_mention(text):
-    matches = re.findall(r"<gene_info>.*?(localizes|location|cellular compartment|cellular structure|cellular entity|virion component|macromolecular complex).*?</gene_info>", text, re.DOTALL)
     return 1 if len(matches) == 1 else 0
 
 
@@ -138,36 +64,6 @@ def answer_after_thinks(text):
     last_think_end = think_tags[-1].end()
     return 1 if answer_match.start() > last_think_end else 0
 
-def answer_after_gene_info(text):
-    think_tags = list(re.finditer(r"</gene_info>", text))
-    answer_match = re.search(r"<answer>", text)
-    if not answer_match:
-        return 0
-    if not think_tags:
-        return 0
-    last_think_end = think_tags[-1].end()
-    return 1 if answer_match.start() > last_think_end else 0
-
-def think_after_gene_info(text):
-    gene_info_tags = list(re.finditer(r"</gene_info>", text))
-    think_match = re.search(r"<think>", text)
-    if not think_match:
-        return 0
-    if not gene_info_tags:
-        return 0
-    last_gene_info_end = gene_info_tags[-1].end()
-    return 1 if think_match.start() > last_gene_info_end else 0
-
-def gene_info_inside_think(text):
-    think_tags = list(re.finditer(r"</think>", text))
-    gene_info_match = re.search(r"</gene_info>", text)
-    if not gene_info_match:
-        return 0
-    if not think_tags:
-        return 0
-    last_think_end = think_tags[-1].end()
-    return 1 if gene_info_match.start() < last_think_end else 0
-
 
 def thinks_have_text(text):
     return (
@@ -179,27 +75,34 @@ def thinks_have_text(text):
         else 0
     )
 
-def gene_infos_have_text(text):
-    return (
-        1
-        if all(
-            re.search(r"\S", match)
-            for match in re.findall(r"<gene_info>(.*?)</gene_info>", text, re.DOTALL)
-        )
-        else 0
-    )
 
+def keywords_mentioned_in_think(text: str, keywords: str) -> float:
+    """
+    Checks how many keywords from the pipe-separated string are mentioned in the think sections.
+    Returns a score between 0 and 1 representing the ratio of found keywords.
+    """
+    # Split keywords and filter out empty strings
+    keyword_list = [k for k in keywords.split("|") if k]
 
-def genes_mentioned_in_think(text, gene_perturbed, gene_monitored):
-    think_contents = re.findall(
-        r"<think>(.*?)</think>", text, re.DOTALL | re.IGNORECASE
-    )
+    # If no keywords to check, return 1.0
+    if not keyword_list:
+        return 1.0
 
-    for content in think_contents:
-        score = int(gene_perturbed in content) + int(gene_monitored in content)
-        if score > 0:
-            return score / 2.0  # 0.5 or 1.0
-    return 0.0
+    think_contents = extract_think(text)
+
+    # If no think sections, return 0.0
+    if not think_contents:
+        return 0.0
+
+    # Count how many keywords are found in any think section
+    found_keywords = 0
+
+    for keyword in keyword_list:
+        if keyword in think_contents:
+            found_keywords += 1
+
+    # Return the ratio of found keywords to total keywords
+    return found_keywords / len(keyword_list)
 
 
 def no_nested_tags(text):
@@ -217,11 +120,11 @@ def no_nested_tags(text):
 
 def all_tags_properly_closed(text):
     tag_stack = []
-    tag_pattern = re.finditer(r"</?(think|answer|gene_info)>", text)
+    tag_pattern = re.finditer(r"</?(think|answer)>", text)
 
     for tag in tag_pattern:
         tag_text = tag.group()
-        tag_type = re.match(r"</?(think|answer|gene_info)>", tag_text).group(1)
+        tag_type = re.match(r"</?(think|answer)>", tag_text).group(1)
 
         if tag_text.startswith("</"):
             # closing tag
@@ -245,31 +148,25 @@ def ends_with_answer(text):
 
 
 def has_any_tag(text):
-    return 1 if re.search(r"</?(think|answer|gene_info)>", text) else 0
+    return 1 if re.search(r"</?(think|answer)>", text) else 0
 
 
-def composite_formatting_reward(text, include_gene_info = False):
+def composite_formatting_reward(text):
     at_least_one_think = has_at_least_one_think(text)
-    at_least_one_gene_info = has_at_least_one_gene_info(text)
     has_tags = has_any_tag(text)
     checks = [
-        at_least_one_think,  
+        at_least_one_think,
         low_untagged_ratio(text),
-        # is_not_too_long(text),
+        is_not_too_long(text),
         has_one_answer(text),
-        answer_after_thinks(text),    
-        think_after_gene_info(text),
+        answer_after_thinks(text),
         thinks_have_text(text) * at_least_one_think,
-        # no_nested_tags(text) * has_tags,
+        no_nested_tags(text) * has_tags,
         has_limited_thinks(text) * at_least_one_think,
+        starts_with_think(text),
         all_tags_properly_closed(text) * has_tags,
         ends_with_answer(text),
     ]
-    if include_gene_info:
-        checks.extend[at_least_one_gene_info,
-            answer_after_gene_info(text),
-            gene_infos_have_text(text),
-            starts_with_gene_info(text)]
     return sum(checks) / len(checks)  # normalized score from 0 to 1
 
 
