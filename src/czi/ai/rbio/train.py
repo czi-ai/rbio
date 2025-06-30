@@ -90,7 +90,7 @@ class Reward:
 
         self.go_rouge_scorer = None
 
-        # exponential moving average normalization
+        # Exponential Moving Average (EMA) normalization parameters
         self.reward_ema_norm_alpha = 0.001  # decay for stability
         self.reward_ema_mean = -np.inf
         self.reward_ema_var = 1.0
@@ -103,6 +103,14 @@ class Reward:
     def check_go_ontology_verifier(self, verifier):
         """
         Check if there is a GO Ontology verifier in the list of verifiers
+
+        Args:
+            verifier: name of soft verifier; if GO, should follow the GO_{go_ontology_type}_{verifier_type}
+                      i.e.: GO_L_rouge, GO_L_llh, GO_L_discrete
+
+        Return:
+            use_go_ontology: True if using a GO Ontology verifier
+            go_verifier: the type of GO Verifier to use; one of: ['discrete', 'rouge', 'llh']
         """
         use_go_ontology = False
         go_verifier = []
@@ -112,23 +120,48 @@ class Reward:
         return use_go_ontology, go_verifier
 
     def normalize_reward_ema(self, reward):
+        """
+        Normalizes a reward using an Exponential Moving Average (EMA), a technique
+        used to compute moving averages of rewards in an online fashion during RL training
+
+        Args:
+            reward: reward to be normalized
+
+        Return:
+            normalized reward
+
+        """
+        # Reward Mean and Variance get updated during training
         self.reward_ema_mean = (
             1 - self.reward_ema_norm_alpha
         ) * self.reward_ema_mean + self.reward_ema_norm_alpha * reward
+
         self.reward_ema_var = (
             1 - self.reward_ema_norm_alpha
         ) * self.reward_ema_var + self.reward_ema_norm_alpha * (
             reward - self.reward_ema_mean
         ) ** 2
         ema_std = (self.reward_ema_var + self.epsilon) ** 0.5
+
+        # Reward gets normalized using updated mean and std
         norm_reward = (reward - self.reward_ema_mean) / ema_std
+
+        # Map to [0, 1] interval by passing through the sigmoid fn
         norm_reward = 1 / (1 + np.exp(-norm_reward))
         return norm_reward
 
-    def init_go_ontologies(self, go_verifier):
-        self.gene2go_annotations = instantiate_go_ontologies(go_verifier)
+    def init_go_ontologies(self, go_ontology_type):
+        """
+        Initialize GO Ontology dictionary and ROUGE Scorer
+
+        Args:
+            go_ontology_type: type of GO Ontology to use - one of:
+                F: GO Molecular Function
+                C: GO Cellular Component
+                P: Go Biological Process
+        """
+        self.gene2go_annotations = instantiate_go_ontologies(go_ontology_type)
         self.go_rouge_scorer = instantiate_rouge_scorer()
-        # one of rouge, llh, discrete; assumes GO verifiers follow the GO_X_verifier_type structure
 
     def compute_reward(
         self,
@@ -307,7 +340,6 @@ def train_fn(
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
 
-# /mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/
 @click.command()
 @click.option(
     "--dataset-path",
