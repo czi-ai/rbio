@@ -2,7 +2,41 @@ import re
 
 from torch.nn.functional import softmax
 
-from czi.ai.rbio.utils.utils import extract_answer, extract_think
+from czi.ai.rbio.utils.utils import extract_answer, extract_gene_info, extract_think
+
+
+def reward_answer_against_go(
+    completion: str,
+    classes: str,
+    class_confidence: str,
+    kw_genes: List[str],
+    go_verifier_type: str,
+    gene2annotations: dict,
+    rouge_scorer,
+    model=None,
+    tokenizer=None,
+) -> float:
+    rewards = [0.0]
+
+    # Loop through the keywords, which in our case are genes
+    for gene in kw_genes:
+        gene_info = extract_gene_info(completion, gene)
+        # No gene info
+        if gene_info == "No information.":
+            continue
+        elif go_verifier_type == "discrete":
+            go_reward_discrete = verify_gene_info(gene_info, gene, gene2annotations)
+            rewards.append(go_reward_discrete)
+        elif go_verifier_type == "rouge":
+            go_reward_rouge1, go_reward_rouge2, go_reward_rougel = (
+                verify_gene_info_rouge_scores(gene_info, gene, gene2annotations, scorer)
+            )
+            rewards.extend[go_reward_rouge1, go_reward_rouge2, go_reward_rougel]
+        elif go_verifier_type == "llh":
+            go_reward_llh = verify_gene_info_llh(
+                gene, gene2go_annotations, model, tokenizer, go_verifier_type
+            )
+            rewards.append(go_info_llh)
 
 
 def reward_answer_against_label(
