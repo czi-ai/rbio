@@ -17,15 +17,15 @@ from torch import nn
 
 TF_CFG = os.getenv(
     "TF_CFG",
-    "/mnt/czi-sci-ai/project-rbio/transcriptformer/inference_config.yaml",
+    "/mnt/czi-sci-ai/project-rbio-40t/transcriptformer/inference_config.yaml",
 )
 TF_MODEL_CKPT = os.getenv(
     "TF_MODEL_CKPT",
-    "/mnt/czi-sci-ai/project-rbio/transcriptformer/tf_sapiens",
+    "/mnt/czi-sci-ai/project-rbio-40t/transcriptformer/tf_sapiens",
 )
 GENE2ENSEMBL_ID_FILEPATH = os.getenv(
     "GENE2ENSEMBL_ID_FILEPATH",
-    "/mnt/czi-sci-ai/project-rbio/transcriptformer/gene2ensembl_ids.pkl",
+    "/mnt/czi-sci-ai/project-rbio-40t/transcriptformer/gene2ensembl_ids.pkl",
 )
 
 GO_ONTOLOGIES_FILEPATH = os.getenv(
@@ -33,126 +33,19 @@ GO_ONTOLOGIES_FILEPATH = os.getenv(
 )
 
 
-def call_vcm(
-    gene_perturbed,
-    gene_monitored,
-    gene2ensembl_id,
-    model,
-    gene_vocab,
-    verification_type="gene_similarity",
-):
-    gene_perturbed_ensembl_id = (
-        str(np.random.choice(gene2ensembl_id[gene_perturbed]))
-        if gene_perturbed in gene2ensembl_id
-        else "[PAD]"
-    )
-    gene_monitored_ensembl_id = (
-        str(np.random.choice(gene2ensembl_id[gene_monitored]))
-        if gene_monitored in gene2ensembl_id
-        else "[PAD]"
-    )
-    gene_perturbed_index = (
-        gene_vocab[gene_perturbed_ensembl_id]
-        if gene_perturbed_ensembl_id in gene_vocab
-        else gene_vocab["[PAD]"]
-    )
-    gene_monitored_index = (
-        gene_vocab[gene_monitored_ensembl_id]
-        if gene_monitored_ensembl_id in gene_vocab
-        else gene_vocab["[PAD]"]
-    )
-
-    gene_perturbed_index = torch.Tensor([gene_perturbed_index]).long()
-    gene_monitored_index = torch.Tensor([gene_monitored_index]).long()
-
-    gene_embs = model.gene_embeddings.embedding
-    gene_perturbed_emb = gene_embs(gene_perturbed_index)
-    gene_monitored_emb = gene_embs(gene_monitored_index)
-    cos = nn.CosineSimilarity(dim=1, eps=1e-6)
-    gene_similarity = cos(gene_perturbed_emb, gene_monitored_emb)
-
-    return gene_similarity[0]
-
-
-def instantiate_vcm(model_type):
-    if model_type == "transcriptformer":
-        gene2ensemble_id = pickle.load(open(GENE2ENSEMBL_ID_FILEPATH, "rb"))
-
-        cfg = yaml.load(open(TF_CFG, "r"), Loader=yaml.SafeLoader)
-        config_path = os.path.join(cfg["model"]["checkpoint_path"], "config.json")
-        with open(config_path) as f:
-            config_dict = json.load(f)
-        mlflow_cfg = OmegaConf.create(config_dict)
-
-        # Merge the MLflow config with the main config
-        cfg = OmegaConf.create(cfg)
-        cfg = OmegaConf.merge(mlflow_cfg, cfg)
-
-        # Set the checkpoint paths based on the unified checkpoint_path
-        cfg.model.inference_config.load_checkpoint = os.path.join(
-            cfg.model.checkpoint_path, "model_weights.pt"
-        )
-        cfg.model.data_config.aux_vocab_path = os.path.join(
-            cfg.model.checkpoint_path, "vocabs"
-        )
-        cfg.model.data_config.esm2_mappings_path = os.path.join(
-            cfg.model.checkpoint_path, "vocabs"
-        )
-
-        (gene_vocab, aux_vocab), emb_matrix = load_vocabs_and_embeddings(cfg)
-        # print('Gene VOCAB', gene_vocab)
-
-        # Instantiate the model
-        logging.info("Instantiating the model")
-        model = instantiate(
-            cfg.model,
-            gene_vocab_dict=gene_vocab,
-            aux_vocab_dict=aux_vocab,
-            emb_matrix=emb_matrix,
-        )
-        model.eval()
-        logging.info("Model instantiated successfully")
-
-        # Check if checkpoint is supplied
-        if (
-            not hasattr(cfg.model.inference_config, "load_checkpoint")
-            or not cfg.model.inference_config.load_checkpoint
-        ):
-            raise ValueError(
-                "No checkpoint provided for inference. Please specify a checkpoint path in "
-                "model.inference_config.load_checkpoint"
-            )
-
-        logging.info("Loading model checkpoint")
-        # Instead of loading full checkpoint, just load weights
-        state_dict = torch.load(
-            cfg.model.inference_config.load_checkpoint, weights_only=True
-        )
-
-        # Validate and load weights
-        # converter.validate_loaded_weights(model, state_dict)
-        model.load_state_dict(state_dict)
-        logging.info("Model weights loaded successfully")
-
-        # Perform embedding surgery if specified in config
-        if cfg.model.inference_config.pretrained_embedding is not None:
-            logging.info("Performing embedding surgery")
-            # Check if pretrained_embedding_paths is a list, if not convert it to a list
-            if not isinstance(cfg.model.inference_config.pretrained_embedding, list):
-                pretrained_embedding_paths = [
-                    cfg.model.inference_config.pretrained_embedding
-                ]
-            else:
-                pretrained_embedding_paths = (
-                    cfg.model.inference_config.pretrained_embedding
-                )
-            model, gene_vocab = change_embedding_layer(
-                model, pretrained_embedding_paths
-            )
-        return model, gene_vocab, gene2ensemble_id
-
-
 def instantiate_go_ontologies(go_ontology_type):
+    """
+    Instantiate GO Ontology dictionary based on the ontology type
+
+    Args:
+        go_ontology_type: type of GO Ontology to use - one of:
+                F: GO Molecular Function
+                C: GO Cellular Component
+                P: Go Biological Process
+                all: combine all together
+    Return:
+        gene2annotation: mapping from a gene to a list of annotations, based on the given GO ontology type
+    """
     if go_ontology_type != "all":
         filepath = f"{GO_ONTOLOGIES_FILEPATH}gene_ontology_{go_ontology_type}.csv"
         gene2annotation = read_go_df(filepath)
@@ -166,14 +59,21 @@ def instantiate_go_ontologies(go_ontology_type):
     return gene2annotation
 
 
-def instantiate_rouge_scorer():
-    scorer = rouge_scorer.RougeScorer(["rouge1", "rouge2", "rougeL"], use_stemmer=True)
-    return scorer
-
-
 def read_go_df(filepath):
+    """
+    Reads a GO ontology file from a filepath and converts it into a dictionary
+    from genes to list of annotations
+
+    Args:
+        filepath: location of GO gene ontology
+
+    Return:
+        gene2annotation: mapping from a gene to a list of annotations, based on the given GO ontology type
+    """
     go_df = pd.read_csv(filepath)
     go_df_grouped = go_df.groupby("gene").aggregate(list).reset_index()
+
+    # combine all annotations for a given gene
     gene2annotation = dict(
         zip(
             go_df_grouped["gene"].to_list(),
@@ -183,20 +83,59 @@ def read_go_df(filepath):
     return gene2annotation
 
 
-def verify_gene_info_discrete(gene_info_llm, gene, gene2go_annotations):
+def instantiate_rouge_scorer():
+    """
+    Instantiate a ROUGE Scorer
+    """
+    scorer = rouge_scorer.RougeScorer(["rouge1", "rouge2", "rougeL"], use_stemmer=True)
+    return scorer
 
+
+def verify_gene_info_discrete(gene_info_llm, gene, gene2go_annotations):
+    """
+    Verify and reward gene information used by the reasoning model by lookup into a GO dictionary of annotations
+    (established structured source of knowledge). The model gets a reward for each exact match for an annotation
+    found in the answer.
+
+    Args:
+        gene_info_llm: gene information used by the llm, inside the <gene_info</<gene_info>
+        gene: gene to retrieve annotations for
+        gene2go_annotations: mapping from GO, from gene to a set of annotations
+
+    Return:
+        reward based on exact matches of annotations in the generated answer
+    """
     reward = 0.0
     if gene not in gene2go_annotations:
         return 0.0
+    # retrieve the annotations for that gene from GO
     gene_annotations = gene2go_annotations[gene]
     for gene_annotation in gene_annotations:
+        # for each annotation from GO, if it's in the answer, give a rewad
         if gene_annotation in gene_info_llm:
             reward += 1
+    # normalize by total number of annotations in GO
     return reward / len(gene_annotations)
 
 
 def verify_gene_info_rouge_scores(gene_info_llm, gene, gene2go_annotations, scorer):
+    """
+    Verify and reward gene information used by the reasoning model by lookup into a GO dictionary of annotations
+    (established structured source of knowledge). The model gets three rewards based on ROUGE scores between the annotations
+    in the GO Ontology and the information in the <gene_info></gene_info>:
+        rouge1: based on 1-gram overlap
+        rouge1: based on 2-grams overlap
+        rougeL: based on LCS (longest common subsequence)
 
+    Args:
+        gene_info_llm: gene information used by the llm, inside the <gene_info</<gene_info>
+        gene: gene to retrieve annotations for
+        gene2go_annotations: mapping from GO, from gene to a set of annotations
+        scorer: ROUGE scorer to use; already instantiated
+
+    Return:
+        list of rewards: [rouge1_reward, rouge2_reward, rougeL_reward]
+    """
     if gene not in gene2go_annotations:
         return 0.0, 0.0, 0.0
     gene_annotations = " ".join(gene2go_annotations[gene])
@@ -206,13 +145,33 @@ def verify_gene_info_rouge_scores(gene_info_llm, gene, gene2go_annotations, scor
 
 
 def verify_gene_info_llh(gene, gene2go_annotations, model, tokenizer, go_ontology_type):
+    """
+    Verify and reward existing gene information about a given gene under the
+    GO Ontology (established structured source of knowledge) by generating
+    the log-likelihood of that information under the reasoning model that gets trained
+    The model returns the log-likelihood.
+
+    Args:
+        gene: gene to retrieve annotations for
+        gene2go_annotations: mapping from GO, from gene to a set of annotations
+        model: RL model getting trained
+        tokenizer: tokenizer corresponding to model
+        go_ontology_type: type of ontology to use; one of F, C, P
+
+    Return:
+        log-likelihood of gene annotations for gene in the GO Ontology under the model
+    """
     if gene not in gene2go_annotations:
         return 0.0
+    # Combine gene annotations
     gene_annotations_combined = ", ".join(gene2go_annotations[gene])
+
+    # Generate the ontology-specific prompts that will get evaluated under the model
     gene_annotation_c = f"Gene {gene} carries its molecular function in the following cellular components: {gene_annotations_combined}"
     gene_annotation_f = f"Gene {gene} or its gene products carry the following molecular-level activities inside a cell: {gene_annotations_combined}"
     gene_annotation_p = f"Gene {gene} is involved in the following biological processes: {gene_annotations_combined}"
 
+    # Choose one prompt based on the type of ontology used
     gene_annotation = ""
     if go_ontology_type == "C":
         gene_annotation = gene_annotation_c
@@ -221,9 +180,12 @@ def verify_gene_info_llh(gene, gene2go_annotations, model, tokenizer, go_ontolog
     elif go_ontology_type == "P":
         gene_annotation = gene_annotation_p
 
+    # Tokenize gene_annotation
     input_ids = tokenizer.encode(gene_annotation, return_tensors="pt").long()
+
+    # Pass the tokenized gene_annotation through the model
     input_ids = input_ids.to(model.device)
     with torch.no_grad():
         outputs = model(input_ids, labels=input_ids)
-        nll = outputs.loss.item()  # avg nll across tokens
+        nll = outputs.loss.item()  # This gives back the avg NLL across tokens
     return -nll
