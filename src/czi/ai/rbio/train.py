@@ -206,8 +206,6 @@ class Reward:
                 kw_genes = kw.split("|")
                 answer_reward = reward_answer_against_go_ontology(
                     cmplt,
-                    clss,
-                    conf,
                     kw_genes,
                     self.go_verifier,
                     self.go_ontology_type,
