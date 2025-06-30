@@ -15,12 +15,6 @@ from pytorch_lightning.loggers import CSVLogger
 from rouge_score import rouge_scorer
 from torch import nn
 
-from czi.ai.rbio.model.verifiers import (
-    verify_gene_info,
-    verify_gene_info_llh,
-    verify_gene_info_rouge_scores,
-)
-
 TF_CFG = os.getenv(
     "TF_CFG",
     "/mnt/czi-sci-ai/project-rbio/transcriptformer/inference_config.yaml",
@@ -189,7 +183,7 @@ def read_go_df(filepath):
     return gene2annotation
 
 
-def verify_gene_info(gene_info_llm, gene, gene2go_annotations):
+def verify_gene_info_discrete(gene_info_llm, gene, gene2go_annotations):
 
     reward = 0.0
     if gene not in gene2go_annotations:

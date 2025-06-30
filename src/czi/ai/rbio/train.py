@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
 import click
+import numpy as np
 import pandas as pd
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
@@ -11,6 +12,7 @@ from trl import GRPOConfig, GRPOTrainer
 from czi.ai.rbio.model.rewards import (
     composite_formatting_reward,
     keywords_mentioned_in_think,
+    reward_answer_against_go_ontology,
     reward_answer_against_label,
 )
 from czi.ai.rbio.model.verifiers import (
@@ -65,31 +67,18 @@ def differential_expression_dataset_generator(dataset, tokenizer, balance_pos_ne
         yield return_data
 
 
-def check_go_ontology_verifier(verifiers):
-    """
-    Check if there is a GO Ontology verifier in the list of verifiers
-    """
-    use_go_ontology = False
-    go_verifier = []
-    for v in verifiers:
-        if v.starswith("GO"):
-            use_go_ontology = True
-            go_verifier = v.split("GO_")[1].split("_")
-    return use_go_ontology, go_verifier
-
-
 class Reward:
     def __init__(
         self,
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
-        verifiers: Optional[Union[str, List[str]]] = "hard",
+        verifier_type: Optional[Union[str, List[str]]] = "hard",
     ):
         self.model = model
         self.tokenizer = tokenizer
         self.count = 0
 
-        self.verifiers = verifiers
+        self.verifiers = verifier_type[0]  # this is assumed to be a single term for now
 
         self.gene2ensembl_id = None
 
@@ -101,11 +90,45 @@ class Reward:
 
         self.go_rouge_scorer = None
 
+        # exponential moving average normalization
+        self.reward_ema_norm_alpha = 0.001  # decay for stability
+        self.reward_ema_mean = -np.inf
+        self.reward_ema_var = 1.0
+        self.epsilon = 1e-7
+
+        self.use_go_ontology_verifier, self.go_ontology_type = (
+            self.check_go_ontology_verifier(self.verifiers)
+        )
+
+    def check_go_ontology_verifier(self, verifier):
+        """
+        Check if there is a GO Ontology verifier in the list of verifiers
+        """
+        use_go_ontology = False
+        go_verifier = []
+        if verifier.startswith("GO"):
+            use_go_ontology = True
+            go_verifier = verifier.split("GO_")[1].split("_")[0]
+        return use_go_ontology, go_verifier
+
+    def normalize_reward_ema(self, reward):
+        self.reward_ema_mean = (
+            1 - self.reward_ema_norm_alpha
+        ) * self.reward_ema_mean + self.reward_ema_norm_alpha * reward
+        self.reward_ema_var = (
+            1 - self.reward_ema_norm_alpha
+        ) * self.reward_ema_var + self.reward_ema_norm_alpha * (
+            reward - self.reward_ema_mean
+        ) ** 2
+        ema_std = (self.reward_ema_var + self.epsilon) ** 0.5
+        norm_reward = (reward - self.reward_ema_mean) / ema_std
+        norm_reward = 1 / (1 + np.exp(-norm_reward))
+        return norm_reward
+
     def init_go_ontologies(self, go_verifier):
         self.gene2go_annotations = instantiate_go_ontologies(go_verifier)
-        self.rouge_scorer = instantiate_rouge_scorer()
+        self.go_rouge_scorer = instantiate_rouge_scorer()
         # one of rouge, llh, discrete; assumes GO verifiers follow the GO_X_verifier_type structure
-        self.go_verifier = go_verifier.split("_")[2].split("_")
 
     def compute_reward(
         self,
@@ -132,7 +155,7 @@ class Reward:
             user_prompt,
             task,
         ):
-            format_reward = composite_formatting_reward(cmplt)
+            format_reward = composite_formatting_reward(cmplt, self.go_verifier != None)
 
             mention_reward = keywords_mentioned_in_think(cmplt, kw)
 
@@ -143,12 +166,10 @@ class Reward:
             reasoning_advantage_reward = 0
             answer_reward = 0
 
-            use_go_ontology_verifier, go_verifier = check_go_ontology_verifier(
-                self.verifiers
-            )
-            if use_go_ontology_verifier:
+            if self.use_go_ontology_verifier:
                 if self.gene2go_annotations is None:
-                    self.init_go_ontologies(go_verifier)
+                    self.init_go_ontologies(self.go_ontology_type)
+                    self.go_verifier = self.verifiers.split("_")[2].split("_")[0]
                 kw_genes = kw.split("|")
                 answer_reward = reward_answer_against_go_ontology(
                     cmplt,
@@ -156,11 +177,16 @@ class Reward:
                     conf,
                     kw_genes,
                     self.go_verifier,
+                    self.go_ontology_type,
                     self.gene2go_annotations,
                     self.go_rouge_scorer,
                     self.model,
                     self.tokenizer,
                 )
+                # initialize moving average with initial reward
+                if self.reward_ema_mean == -np.inf:
+                    self.reward_ema_mean = answer_reward
+                answer_reward = self.normalize_reward_ema(answer_reward)
             else:
                 answer_reward = reward_answer_against_label(cmplt, clss, conf)
 
@@ -172,7 +198,7 @@ class Reward:
                 print(f"classes: {clss}")
                 print(f"confidences per class: {conf}")
                 print(f"label: {lbl}")
-                print(f"keyworkds: {keywords}")
+                print(f"keyworkds: {kw}")
                 print(f"format reward: {format_reward}")
                 print(f"mention reward: {mention_reward}")
                 print(f"answer reward: {answer_reward}")
@@ -263,8 +289,8 @@ def train_fn(
             model_name=model_name,
             verifier_type=verifier_type,
             batch_size=per_device_train_batch_size,
-            save_steps=5000,
-            max_steps=50,
+            save_steps=10000,
+            max_steps=100000,
         )
 
     trainer_args.output_dir = str(output_dir)
@@ -317,7 +343,7 @@ def train_fn(
 @click.option(
     "--verifier-type",
     help="type of verifier, hard, mlp or soft",
-    default=["GO_F"],
+    default=["GO_F_llh"],
     multiple=True,
 )
 def train(

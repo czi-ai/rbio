@@ -1,16 +1,28 @@
 import re
+from typing import List, Optional, Union
 
+import numpy as np
 from torch.nn.functional import softmax
 
-from czi.ai.rbio.utils.utils import extract_answer, extract_gene_info, extract_think
+from czi.ai.rbio.model.verifiers import (
+    verify_gene_info_discrete,
+    verify_gene_info_llh,
+    verify_gene_info_rouge_scores,
+)
+from czi.ai.rbio.utils.utils import (
+    extract_binary_answer,
+    extract_gene_info,
+    extract_think,
+)
 
 
-def reward_answer_against_go(
+def reward_answer_against_go_ontology(
     completion: str,
     classes: str,
     class_confidence: str,
     kw_genes: List[str],
     go_verifier_type: str,
+    go_ontology_type: str,
     gene2annotations: dict,
     rouge_scorer,
     model=None,
@@ -25,24 +37,29 @@ def reward_answer_against_go(
         if gene_info == "No information.":
             continue
         elif go_verifier_type == "discrete":
-            go_reward_discrete = verify_gene_info(gene_info, gene, gene2annotations)
+            go_reward_discrete = verify_gene_info_discrete(
+                gene_info, gene, gene2annotations
+            )
             rewards.append(go_reward_discrete)
         elif go_verifier_type == "rouge":
             go_reward_rouge1, go_reward_rouge2, go_reward_rougel = (
-                verify_gene_info_rouge_scores(gene_info, gene, gene2annotations, scorer)
+                verify_gene_info_rouge_scores(
+                    gene_info, gene, gene2annotations, rouge_scorer
+                )
             )
-            rewards.extend[go_reward_rouge1, go_reward_rouge2, go_reward_rougel]
+            rewards.extend([go_reward_rouge1, go_reward_rouge2, go_reward_rougel])
         elif go_verifier_type == "llh":
             go_reward_llh = verify_gene_info_llh(
-                gene, gene2go_annotations, model, tokenizer, go_verifier_type
+                gene, gene2annotations, model, tokenizer, go_ontology_type
             )
-            rewards.append(go_info_llh)
+            rewards.append(go_reward_llh)
+    return np.array(rewards).mean()
 
 
 def reward_answer_against_label(
     completion: str, classes: str, class_confidence: str
 ) -> float:
-    answer = extract_answer(completion)
+    answer = extract_binary_answer(completion)
     if answer is None:
         return 0.0
 
@@ -60,6 +77,10 @@ def reward_answer_against_label(
 
 def has_at_least_one_think(text):
     return 1 if re.search(r"<think>.*?</think>", text, re.DOTALL) else 0
+
+
+def has_at_least_one_gene_info(text):
+    return 1 if re.search(r"<gene_info>.*?</gene_info>", text, re.DOTALL) else 0
 
 
 def low_untagged_ratio(text):
@@ -185,7 +206,44 @@ def has_any_tag(text):
     return 1 if re.search(r"</?(think|answer)>", text) else 0
 
 
-def composite_formatting_reward(text):
+def think_after_gene_info(text):
+    gene_info_tags = list(re.finditer(r"</gene_info>", text))
+    think_match = re.search(r"<think>", text)
+    if not think_match:
+        return 0
+    if not gene_info_tags:
+        return 0
+    last_gene_info_end = gene_info_tags[-1].end()
+    return 1 if think_match.start() > last_gene_info_end else 0
+
+
+def answer_after_gene_info(text):
+    think_tags = list(re.finditer(r"</gene_info>", text))
+    answer_match = re.search(r"<answer>", text)
+    if not answer_match:
+        return 0
+    if not think_tags:
+        return 0
+    last_think_end = think_tags[-1].end()
+    return 1 if answer_match.start() > last_think_end else 0
+
+
+def starts_with_gene_info(text):
+    return 1 if re.match(r"^\s*<gene_info>", text) else 0
+
+
+def gene_infos_have_text(text):
+    return (
+        1
+        if all(
+            re.search(r"\S", match)
+            for match in re.findall(r"<gene_info>(.*?)</gene_info>", text, re.DOTALL)
+        )
+        else 0
+    )
+
+
+def composite_formatting_reward(text, use_go):
     at_least_one_think = has_at_least_one_think(text)
     has_tags = has_any_tag(text)
     checks = [
@@ -197,17 +255,28 @@ def composite_formatting_reward(text):
         thinks_have_text(text) * at_least_one_think,
         no_nested_tags(text) * has_tags,
         has_limited_thinks(text) * at_least_one_think,
-        starts_with_think(text),
         all_tags_properly_closed(text) * has_tags,
         ends_with_answer(text),
+        starts_with_think(text),
     ]
+    if use_go:
+        checks = checks[:-1]
+        checks.extend(
+            [
+                has_at_least_one_gene_info(text),
+                think_after_gene_info(text),
+                answer_after_gene_info(text),
+                gene_infos_have_text(text),
+                starts_with_gene_info(text),
+            ]
+        )
     return sum(checks) / len(checks)  # normalized score from 0 to 1
 
 
 def reasoning_advantage_reward(
     model, tokenizer, system_prompt, user_prompt, completion, label
 ):
-    answer = extract_answer(completion)
+    answer = extract_binary_answer(completion)
 
     if answer is not None:
         if answer:
