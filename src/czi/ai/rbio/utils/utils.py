@@ -4,7 +4,7 @@ import re
 
 
 def extract_answer(text):
-    found = re.search(r"<answer>\s*(yes|no)\s*</answer>", text, re.IGNORECASE)
+    found = re.search(r"<answer>\s*(.*?)\s*</answer>", text, re.IGNORECASE)
     if found:
         return found.group(1).strip().lower()
 
