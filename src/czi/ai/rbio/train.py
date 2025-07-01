@@ -67,6 +67,10 @@ class Reward:
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
         verifier_type: Optional[str] = "hard",
+        answer_reward_on: bool = True,
+        mention_reward_on: bool = True,
+        reasoning_advantage_reward_on: bool = True,
+        format_reward_on: bool = True,
     ):
         self.model = model
         self.tokenizer = tokenizer
@@ -77,6 +81,11 @@ class Reward:
         self.gene2ensembl_id = None
 
         self.metrics_collector = MetricsCollector()
+
+        self.answer_reward_on = answer_reward_on
+        self.mention_reward_on = mention_reward_on
+        self.reasoning_advantage_reward_on = reasoning_advantage_reward_on
+        self.format_reward_on = format_reward_on
 
     def compute_reward(
         self,
@@ -103,18 +112,28 @@ class Reward:
             user_prompt,
             task,
         ):
-            format_reward = composite_formatting_reward(cmplt)
+            if self.format_reward_on:
+                format_reward = composite_formatting_reward(cmplt)
+            else:
+                format_reward = 0
 
-            mention_reward = keywords_mentioned_in_think(cmplt, kw)
+            if self.mention_reward_on:
+                mention_reward = keywords_mentioned_in_think(cmplt, kw)
+            else:
+                mention_reward = 0
 
-            # reasoning_advantage_reward = compute_reasoning_advantage(
-            #    self.model, self.tokenizer, sys_p, usr_p, completion, label
-            # )
+            if self.reasoning_advantage_reward_on:
+                # reasoning_advantage_reward = compute_reasoning_advantage(
+                #    self.model, self.tokenizer, sys_p, usr_p, completion, label
+                # )
+                reasoning_advantage_reward = 0
+            else:
+                reasoning_advantage_reward = 0
 
-            reasoning_advantage_reward = 0
-            answer_reward = 0
-
-            answer_reward = reward_answer_against_label(cmplt, clss, conf)
+            if self.answer_reward_on:
+                answer_reward = reward_answer_against_label(cmplt, clss, conf)
+            else:
+                answer_reward = 0
 
             if self.count % 10 == 0:
                 print(f"task: {tsk}")
@@ -179,6 +198,10 @@ def train_fn(
     verifier_type: str = "hard",
     trainer_args: Optional[RbioGRPOConfig] = None,
     balance_pos_neg: bool = True,
+    answer_reward_on: bool = True,
+    mention_reward_on: bool = True,
+    reasoning_advantage_reward_on: bool = True,
+    format_reward_on: bool = True,
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
@@ -224,7 +247,15 @@ def train_fn(
 
     trainer_args.output_dir = str(output_dir)
 
-    reward = Reward(model, tokenizer, verifier_type=verifier_type)
+    reward = Reward(
+        model,
+        tokenizer,
+        verifier_type=verifier_type,
+        answer_reward_on=answer_reward_on,
+        mention_reward_on=mention_reward_on,
+        reasoning_advantage_reward_on=reasoning_advantage_reward_on,
+        format_reward_on=format_reward_on,
+    )
 
     trainer = GRPOTrainer(
         model=model,
@@ -277,6 +308,26 @@ def train_fn(
     help="Whether to balance the positive and negative examples",
     default=True,
 )
+@click.option(
+    "--answer-reward-on",
+    help="Whether to use answer reward",
+    default=True,
+)
+@click.option(
+    "--mention-reward-on",
+    help="Whether to use mention reward",
+    default=True,
+)
+@click.option(
+    "--reasoning-advantage-reward-on",
+    help="Whether to use reasoning advantage reward",
+    default=True,
+)
+@click.option(
+    "--format-reward-on",
+    help="Whether to use format reward",
+    default=True,
+)
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -286,6 +337,10 @@ def train(
     n_generations: int,
     verifier_type: str,
     balance_pos_neg: bool,
+    answer_reward_on: bool,
+    mention_reward_on: bool,
+    reasoning_advantage_reward_on: bool,
+    format_reward_on: bool,
 ):
     train_fn(
         dataset_path=dataset_path,
@@ -296,6 +351,10 @@ def train(
         num_generations=n_generations,
         verifier_type=verifier_type,
         balance_pos_neg=balance_pos_neg,
+        answer_reward_on=answer_reward_on,
+        mention_reward_on=mention_reward_on,
+        reasoning_advantage_reward_on=reasoning_advantage_reward_on,
+        format_reward_on=format_reward_on,
     )
 
 
