@@ -23,7 +23,7 @@ def differential_expression_dataset_generator(dataset, tokenizer, balance_pos_ne
     df_false = dataset
 
     if balance_pos_neg:
-        df_true = dataset[dataset.label == 1]
+        df_true = dataset[dataset.label != 0]
         df_false = dataset[dataset.label == 0]
 
         dataset_len = max([len(df_true), len(df_false)]) * 2
@@ -178,6 +178,7 @@ def train_fn(
     num_generations: int = 4,
     verifier_type: str = "hard",
     trainer_args: Optional[RbioGRPOConfig] = None,
+    balance_pos_neg: bool = True,
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
@@ -199,7 +200,11 @@ def train_fn(
 
     dataset = Dataset.from_generator(
         differential_expression_dataset_generator,
-        gen_kwargs={"dataset": df, "tokenizer": tokenizer},
+        gen_kwargs={
+            "dataset": df,
+            "tokenizer": tokenizer,
+            "balance_pos_neg": balance_pos_neg,
+        },
     )
 
     if trainer_args is None:
@@ -267,6 +272,11 @@ def train_fn(
 @click.option(
     "--verifier-type", help="type of verifier, hard, mlp or soft", default="hard"
 )
+@click.option(
+    "--balance-pos-neg",
+    help="Whether to balance the positive and negative examples",
+    default=True,
+)
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -275,6 +285,7 @@ def train(
     batch_size: int,
     n_generations: int,
     verifier_type: str,
+    balance_pos_neg: bool,
 ):
     train_fn(
         dataset_path=dataset_path,
@@ -284,6 +295,7 @@ def train(
         per_device_train_batch_size=batch_size,
         num_generations=n_generations,
         verifier_type=verifier_type,
+        balance_pos_neg=balance_pos_neg,
     )
 
 
