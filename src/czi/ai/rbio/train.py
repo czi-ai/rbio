@@ -144,10 +144,14 @@ class Reward:
                 print(f"confidences per class: {conf}")
                 print(f"label: {lbl}")
                 print(f"keyworkds: {keywords}")
-                print(f"format reward: {format_reward}")
-                print(f"mention reward: {mention_reward}")
-                print(f"answer reward: {answer_reward}")
-                print(f"reasoning advantage: {reasoning_advantage_reward}")
+                if self.format_reward_on:
+                    print(f"format reward: {format_reward}")
+                if self.mention_reward_on:
+                    print(f"mention reward: {mention_reward}")
+                if self.answer_reward_on:
+                    print(f"answer reward: {answer_reward}")
+                if self.reasoning_advantage_reward_on:
+                    print(f"reasoning advantage: {reasoning_advantage_reward}")
 
             total_score = (
                 format_reward
@@ -321,7 +325,7 @@ def train_fn(
 @click.option(
     "--reasoning-advantage-reward-on",
     help="Whether to use reasoning advantage reward",
-    default=True,
+    default=False,
 )
 @click.option(
     "--format-reward-on",
