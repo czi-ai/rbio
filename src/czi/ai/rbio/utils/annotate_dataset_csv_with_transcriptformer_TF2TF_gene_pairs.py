@@ -9,16 +9,11 @@ import pandas as pd
 
 from czi.ai.rbio.utils.utils import (
     SYSTEM_PROMPT,
+    TF_GENE2IDX,
+    TF_ROOT_DIR,
     compute_binary_class_confidences,
     compute_soft_class_confidences,
     normalize_scores,
-)
-
-TF_ROOT_DIR = "/mnt/czi-sci-ai/project-rbio-40t/ana/rbio/datasets/transcriptformer/"
-
-TF_GENE2IDX = os.getenv(
-    "TF_GENE2IDX",
-    f"{TF_ROOT_DIR}gene2idx.pkl",
 )
 
 

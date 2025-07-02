@@ -8,28 +8,13 @@ import torch
 
 from czi.ai.rbio.utils.utils import (
     SYSTEM_PROMPT,
+    TF_GENE2IDX,
+    TF_GENE_PMIS,
+    TF_LEAST_SIGNIFICANT_GENE_PAIRS,
+    TF_SIGNIFICANT_GENE_PAIRS,
     compute_binary_class_confidences,
     compute_soft_class_confidences,
     normalize_scores,
-)
-
-TF_GENE_PMIS = os.getenv(
-    "TF_GENE_PMIS",
-    "/mnt/czi-sci-ai/project-rbio-40t/ana/rbio/datasets/transcriptformer/gene_pmis.pt",
-)
-TF_GENE2IDX = os.getenv(
-    "TF_GENE2IDX",
-    "/mnt/czi-sci-ai/project-rbio-40t/ana/rbio/datasets/transcriptformer/gene2idx.pkl",
-)
-
-TF_SIGNIFICANT_GENE_PAIRS = os.getenv(
-    "TF_SIGNIFICANT_GENE_PAIRS",
-    "/mnt/czi-sci-ai/project-rbio-40t/ana/rbio/datasets/transcriptformer/significant_gene_pairs_0.01.pkl",
-)
-
-TF_LEAST_SIGNIFICANT_GENE_PAIRS = os.getenv(
-    "TF_LEAST_SIGNIFICANT_GENE_PAIRS",
-    "/mnt/czi-sci-ai/project-rbio-40t/ana/rbio/datasets/transcriptformer/least_significant_gene_pairs_0.01.pkl",
 )
 
 

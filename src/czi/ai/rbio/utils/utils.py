@@ -1,11 +1,35 @@
 import hashlib
 import json
+import os
 import re
 
 import numpy as np
 
 # General system prompt
 SYSTEM_PROMPT = "A conversation between User and Biologist. The user asks a question, and the Biologist solves it. The biologist first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
+
+# Transcriptformer Directories and filepaths
+TF_ROOT_DIR = "/mnt/czi-sci-ai/project-rbio-40t/datasets/transcriptformer/"
+
+TF_GENE2IDX = os.getenv(
+    "TF_GENE2IDX",
+    f"{TF_ROOT_DIR}gene2idx.pkl",
+)
+
+TF_GENE_PMIS = os.getenv(
+    "TF_GENE_PMIS",
+    f"{TF_ROOT_DIR}gene_pmis.pt",
+)
+
+TF_SIGNIFICANT_GENE_PAIRS = os.getenv(
+    "TF_SIGNIFICANT_GENE_PAIRS",
+    f"{TF_ROOT_DIR}significant_gene_pairs_0.01.pkl",
+)
+
+TF_LEAST_SIGNIFICANT_GENE_PAIRS = os.getenv(
+    "TF_LEAST_SIGNIFICANT_GENE_PAIRS",
+    "{TF_ROOT_DIR}least_significant_gene_pairs_0.01.pkl",
+)
 
 
 def normalize_scores(m, sig_threshold, reverse=False):
