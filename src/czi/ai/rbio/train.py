@@ -179,7 +179,7 @@ def train_fn(
     verifier_type: str = "hard",
     trainer_args: Optional[RbioGRPOConfig] = None,
     max_train_steps: int = 100000,
-    save_ckpt_every: int = 50000,
+    save_ckpt_every: int = 10000,
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
