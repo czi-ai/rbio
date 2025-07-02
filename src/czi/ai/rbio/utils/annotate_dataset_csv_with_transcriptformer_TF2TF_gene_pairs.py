@@ -8,12 +8,13 @@ import numpy as np
 import pandas as pd
 
 from czi.ai.rbio.utils.utils import (
-    SYSTEM_PROMPT,
     TF_GENE2IDX,
     TF_ROOT_DIR,
     compute_binary_class_confidences,
     compute_soft_class_confidences,
     normalize_scores,
+    read_deepseek_system_prompt,
+    read_template_prompt,
 )
 
 
@@ -126,15 +127,18 @@ def main(
 
     # Combine significan and non-significant interactions
     dataset_df = pd.concat([dataset_sig_df, dataset_not_sig_df])
+    template_prompt = read_template_prompt("TF_TFs2TF")
     dataset_df["user_prompt"] = dataset_df.apply(
-        lambda x: f"If transcription factor {x['transcription_factor']} is activated, is expression of gene {x['gene_monitored']} going to be high? The answer is either yes or no.",
+        lambda x: template_prompt.replace("{0}", x["transcription_factor"]).replace(
+            "{1}", x["gene_monitored"]
+        ),
         1,
     )
     dataset_df["classes"] = "yes|no"
     dataset_df["keywords"] = dataset_df.apply(
         lambda x: "|".join([x["transcription_factor"], x["gene_monitored"]]), 1
     )
-    dataset_df["system_prompt"] = SYSTEM_PROMPT
+    dataset_df["system_prompt"] = read_deepseek_system_prompt()
     dataset_df["cell_line"] = "tf_3"
     dataset_df["dataset_name"] = "TF_predictions"
     dataset_df["task"] = "soft_verification"
@@ -145,7 +149,7 @@ def main(
             compute_binary_class_confidences, 1
         )
         output_filepath = (
-            f"{output_dir}/TF_TFs2genes_p_{p_value}-train-v0.0.4_binary.csv"
+            f"{output_dir}/TF_TFs2genes_p_{p_value}-train-v0.0.5_binary.csv"
         )
     else:
         dataset_df["class_confidences"] = dataset_df.apply(
@@ -154,7 +158,7 @@ def main(
             ),
             1,
         )
-        output_filepath = f"{output_dir}/TF_TFs2genes_p_{p_value}-train-v0.0.4_soft.csv"
+        output_filepath = f"{output_dir}/TF_TFs2genes_p_{p_value}-train-v0.0.5_soft.csv"
     dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == "yes"))
     dataset_df.to_csv(output_filepath, index=False)
     print(f"Successs! Saved file to {output_filepath}!")

@@ -7,7 +7,6 @@ import pandas as pd
 import torch
 
 from czi.ai.rbio.utils.utils import (
-    SYSTEM_PROMPT,
     TF_GENE2IDX,
     TF_GENE_PMIS,
     TF_LEAST_SIGNIFICANT_GENE_PAIRS,
@@ -15,6 +14,8 @@ from czi.ai.rbio.utils.utils import (
     compute_binary_class_confidences,
     compute_soft_class_confidences,
     normalize_scores,
+    read_deepseek_system_prompt,
+    read_template_prompt,
 )
 
 
@@ -55,8 +56,11 @@ def create_pmis_df(gene_indicesA, gene_indicesB, label):
     dataset_sig_df = pd.DataFrame(
         {"gene_perturbed": gene_indicesA, "gene_monitored": gene_indicesB}
     )
+    template_prompt = read_template_prompt("TF_PMIs")
     dataset_sig_df["user_prompt"] = dataset_sig_df.apply(
-        lambda x: f"Are gene {x['gene_perturbed']} and gene {x['gene_monitored']} likely to be co-expressed together? Give a binary yes/no answer only.",
+        lambda x: template_prompt.replace("{0}", x["gene_perturbed"]).replace(
+            "{1}", x["gene_monitored"]
+        ),
         1,
     )
     dataset_sig_df["label"] = label
@@ -160,7 +164,7 @@ def main(
     dataset_df["keywords"] = dataset_df.apply(
         lambda x: "|".join([x["gene_perturbed"], x["gene_monitored"]]), 1
     )
-    dataset_df["system_prompt"] = SYSTEM_PROMPT
+    dataset_df["system_prompt"] = read_deepseek_system_prompt()
     dataset_df["cell_line"] = "tf_3"
     dataset_df["dataset_name"] = "TF_predictions"
     dataset_df["task"] = "soft_verification"
@@ -171,7 +175,7 @@ def main(
             compute_binary_class_confidences, 1
         )
         output_filepath = (
-            f"{output_dir}/TF_PMIs_sig_{p_significant}-train-v0.0.4_binary.csv"
+            f"{output_dir}/TF_PMIs_sig_{p_significant}-train-v0.0.5_binary.csv"
         )
     else:
         gene_pairs2pmi = significant_gene_pairs
@@ -183,7 +187,7 @@ def main(
             1,
         )
         output_filepath = (
-            f"{output_dir}/TF_PMIs_sig_{p_significant}-train-v0.0.4_soft.csv"
+            f"{output_dir}/TF_PMIs_sig_{p_significant}-train-v0.0.5_soft.csv"
         )
     dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == "yes"))
     dataset_df.to_csv(output_filepath, index=False)

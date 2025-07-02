@@ -8,12 +8,13 @@ import numpy as np
 import pandas as pd
 
 from czi.ai.rbio.utils.utils import (
-    SYSTEM_PROMPT,
     TF_GENE2IDX,
     TF_ROOT_DIR,
     compute_binary_class_confidences,
     compute_soft_class_confidences,
     normalize_scores,
+    read_deepseek_system_prompt,
+    read_template_prompt,
 )
 
 
@@ -162,11 +163,13 @@ def main(
     # Combine significant and non significant interactions
     dataset_df = pd.concat([df_sig, df_not_sig])
     dataset_df = dataset_df.explode("gene_monitored")
+    template_prompt = read_template_prompt("TF_MGs2TF")
     dataset_df["user_prompt"] = dataset_df.apply(
-        lambda x: f"In a cell that has marker genes {', '.join(x['marker_genes'])} expressed, is transcription factor {x['gene_monitored']} likely to be activated? The answer is either yes or no.",
+        lambda x: template_prompt.replace(
+            "{0}", ", ".join(x["marker_genes"])).replace("{1}", x["gene_monitored"]),
         1,
     )
-    dataset_df["system_prompt"] = SYSTEM_PROMPT
+    dataset_df["system_prompt"] = read_deepseek_system_prompt()
     dataset_df["classes"] = "yes|no"
     dataset_df["keywords"] = dataset_df["gene_monitored"]
     dataset_df["cell_line"] = "tf_3"
@@ -182,7 +185,7 @@ def main(
             compute_binary_class_confidences, 1
         )
         output_filepath = (
-            f"{output_dir}/TF_MGs2TFs_pmi_{pmi_cutoff}-train-v0.0.4_binary.csv"
+            f"{output_dir}/TF_MGs2TFs_pmi_{pmi_cutoff}-train-v0.0.5_binary.csv"
         )
     else:
         dataset_df["class_confidences"] = dataset_df.apply(
@@ -192,7 +195,7 @@ def main(
             1,
         )
         output_filepath = (
-            f"{output_dir}/TF_MGs2TFs_pmi_{pmi_cutoff}-train-v0.0.4_soft.csv"
+            f"{output_dir}/TF_MGs2TFs_pmi_{pmi_cutoff}-train-v0.0.5_soft.csv"
         )
     dataset_df["label"] = dataset_df["label"].apply(lambda x: int(x == "yes"))
     dataset_df.to_csv(output_filepath, index=False)
