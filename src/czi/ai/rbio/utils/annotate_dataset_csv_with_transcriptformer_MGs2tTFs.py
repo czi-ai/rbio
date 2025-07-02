@@ -165,8 +165,9 @@ def main(
     dataset_df = dataset_df.explode("gene_monitored")
     template_prompt = read_template_prompt("TF_MGs2TF")
     dataset_df["user_prompt"] = dataset_df.apply(
-        lambda x: template_prompt.replace(
-            "{0}", ", ".join(x["marker_genes"])).replace("{1}", x["gene_monitored"]),
+        lambda x: template_prompt.replace("{0}", ", ".join(x["marker_genes"])).replace(
+            "{1}", x["gene_monitored"]
+        ),
         1,
     )
     dataset_df["system_prompt"] = read_deepseek_system_prompt()
