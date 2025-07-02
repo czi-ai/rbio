@@ -140,16 +140,16 @@ class Reward:
                 print(f"system prompt: {sys_p}")
                 print(f"user prompt: {usr_p}")
                 print(f"completion: {cmplt}")
-                print(f"classes: {clss}")
-                print(f"confidences per class: {conf}")
-                print(f"label: {lbl}")
-                print(f"keyworkds: {keywords}")
                 if self.format_reward_on:
                     print(f"format reward: {format_reward}")
                 if self.mention_reward_on:
+                    print(f"keyworkds: {keywords}")
                     print(f"mention reward: {mention_reward}")
                 if self.answer_reward_on:
+                    print(f"label: {lbl}")
                     print(f"answer reward: {answer_reward}")
+                    print(f"classes: {clss}")
+                    print(f"confidences per class: {conf}")
                 if self.reasoning_advantage_reward_on:
                     print(f"reasoning advantage: {reasoning_advantage_reward}")
 
