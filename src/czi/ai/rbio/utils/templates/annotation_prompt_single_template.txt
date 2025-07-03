@@ -1,0 +1,1 @@
+D: These are the top {0} expressed genes in a single-cell observation belonging to a specific cell type: {1}. Based on these highly expressed genes, what do you predict the {2} of this observation to be? Place the reasoning process under the <think> </think> tags and the predicted {2} under the <answer> </answer> tags."

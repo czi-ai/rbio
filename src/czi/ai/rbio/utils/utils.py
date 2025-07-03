@@ -2,8 +2,11 @@ import hashlib
 import json
 import os
 import re
+from pathlib import Path
 
 import numpy as np
+
+TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 # Transcriptformer Directories and filepaths
 TF_ROOT_DIR = "/mnt/czi-sci-ai/project-rbio-40t/transcriptformer/"
@@ -28,24 +31,23 @@ TF_LEAST_SIGNIFICANT_GENE_PAIRS = os.getenv(
     "{TF_ROOT_DIR}least_significant_gene_pairs_0.01.pkl",
 )
 
-# Directory of prompts
-PROMPTS_DIR = "templates/system_prompts"
-
 
 def read_template_prompt(prompt_type):
     """
     Returns a specific template for a given prompt_type
     """
     if prompt_type == "TF_PMIs":
-        prompt = read_prompt("templates/TF_PMIs_prompt_template.txt")
+        prompt = read_prompt(f"{TEMPLATES_DIR}/TF_PMIs_prompt_template.txt")
     elif prompt_type == "TF_MGs2TF":
         prompt = read_prompt(
-            "templates/TF_marker_genes2transcription_factor_prompt_template.txt"
+            f"{TEMPLATES_DIR}/TF_marker_genes2transcription_factor_prompt_template.txt"
         )
     elif prompt_type == "TF_TFs2TF":
         prompt = read_prompt(
-            "templates/TF_transcription_factor2transcription_factor_prompt_template.txt"
+            f"{TEMPLATES_DIR}/TF_transcription_factor2transcription_factor_prompt_template.txt"
         )
+    elif prompt_type == "annotation":
+        prompt = read_prompt(f"{TEMPLATES_DIR}/annotation_prompt_single_template.txt")
     return prompt.split("D: ")[1]
 
 
@@ -53,7 +55,9 @@ def read_deepseek_system_prompt():
     """
     Returns the system prompt used in DeepSeek
     """
-    return read_prompt(f"{PROMPTS_DIR}/system_prompt_deepseek_adapted.txt")
+    return read_prompt(
+        f"{TEMPLATES_DIR}/system_prompts/system_prompt_deepseek_adapted.txt"
+    )
 
 
 def read_prompt(prompt_filepath):

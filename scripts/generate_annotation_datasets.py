@@ -1,3 +1,5 @@
+# Usage: python generate_annotation_dataset.py --h5ad_filename tsv1 --predict_label cell_type --multiple-choice True
+
 import argparse
 
 import numpy as np
@@ -5,9 +7,18 @@ import pandas as pd
 import scanpy as sc
 from sklearn.model_selection import train_test_split
 
-from czi.ai.rbio.utils.utils import compute_binary_class_confidences
+from czi.ai.rbio.utils.utils import read_deepseek_system_prompt, read_template_prompt
 
 RND_SEED = 42
+
+
+def compute_class_confidences(x):
+    classes = x["classes"].split("|")
+    gt_class = x["label"]
+    class_confidences = []
+    for cl in classes:
+        class_confidences.append(str(int(cl == gt_class)))
+    return "|".join(class_confidences)
 
 
 if __name__ == "__main__":
@@ -17,7 +28,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--h5ad_filename",
         type=str,
-        help="Name of the h5ad we want to process",
+        help="Name of the h5ad we want to process. One of: tsv1, tsv2_kidney, alzheimer, myeloid_cancer",
         default="tsv1.h5ad",
     )
     parser.add_argument(
@@ -36,21 +47,31 @@ if __name__ == "__main__":
         "--dataset_version",
         type=str,
         help="Version of the generated data files",
-        default="v0.0.3",
+        default="v0.0.6",
     )
     parser.add_argument(
-        "--predict_label", type=str, help="Label to predict", default="cell_type"
+        "--predict_label",
+        type=str,
+        help="Label to predict. For tsv1, tsv2: cell_type; for alzheimer, myeloid_cancer: disease",
+        default="cell_type",
     )
     parser.add_argument(
-        "--save_dir",
+        "--data_dir",
         type=str,
         help="Directory under which to save the files",
         default="/mnt/czi-sci-ai/project-rbio-40t/datasets/",
     )
 
+    parser.add_argument(
+        "--multiple-choice",
+        type=bool,
+        help="True if to include multi-class choices for predict_label in the prompt",
+        default=False,
+    )
+
     args = parser.parse_args()
 
-    adata = sc.read_h5ad(args.h5ad_filename)
+    adata = sc.read_h5ad(f"{args.data_dir}h5ads/{args.h5ad_filename}")
     X = adata.X.toarray()
     num_genes = args.topk_genes
     num_obs = X.shape[0]
@@ -81,16 +102,18 @@ if __name__ == "__main__":
 
     adata_df["label"] = adata_df[args.predict_label]
 
-    # system_prompt
-    system_prompt = "A conversation between User and Biologist. The user asks a question, and the Biologist solves it. The biologist first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
-
     # user_prompt
+    if args.predict_label != "cell_type":
+        args.predict_label = args.predict_label + " state"
+    template_prompt = read_template_prompt("annotation")
     adata_df["user_prompt"] = adata_df["gene_names"].apply(
-        lambda x: f"These are the top {num_genes} expressed genes in a single-cell observation belonging to a specific cell type: {x}. Based on these highly expressed genes, what do you predict the {args.predict_label} of this observation to be? Place the predicted {args.predict_label} under the <answer> </answer> tags and the reasoning process under the <think> </think> tags."
+        lambda x: template_prompt.replace("{0}", str(num_genes))
+        .replace("{1}", x)
+        .replace("{2}", args.predict_label)
     )
-    adata_df["system_prompt"] = system_prompt
+    adata_df["system_prompt"] = read_deepseek_system_prompt()
     adata_df["dataset_name"] = args.h5ad_filename
-    adata_df["task"] = f"{args.predict_label}_annotation"
+    adata_df["task"] = f"{args.predict_label}_prediction"
     adata_df = adata_df[
         [
             "user_prompt",
@@ -125,13 +148,25 @@ if __name__ == "__main__":
         compute_class_confidences, 1
     )
 
-    train_save_filepath = f"{args.h5ad_filename.split('.h5ad')[0]}_top_{num_genes}_genes-train-{args.dataset_version}.csv"
-    test_save_filepath = f"{args.h5ad_filename.split('.h5ad')[0]}_top_{num_genes}_genes-test-{args.dataset_version}.csv"
+    if args.multiple_choice:
+        adata_df_train["user_prompt"] = adata_df_train.apply(
+            lambda x: x["user_prompt"]
+            + f" The answer is one of: {' | '.join(x['classes'].split('|'))}",
+            1,
+        )
+        adata_df_test["user_prompt"] = adata_df_test.apply(
+            lambda x: x["user_prompt"]
+            + f" The answer is one of: {' | '.join(x['classes'].split('|'))}",
+            1,
+        )
 
-    adata_df_train.to_csv(f"{args.save_dir}{train_save_filepath}", index=False)
-    adata_df_test.to_csv(f"{args.save_dir}{test_save_filepath}", index=False)
+    train_save_filepath = f"{args.h5ad_filename.split('.h5ad')[0]}_top_{num_genes}_genes-train-{args.dataset_version}-multiple-choice-{args.multiple_choice}.csv"
+    test_save_filepath = f"{args.h5ad_filename.split('.h5ad')[0]}_top_{num_genes}_genes-test-{args.dataset_version}-multiple-choice-{args.multiple_choice}.csv"
+
+    adata_df_train.to_csv(f"{args.data_dir}{train_save_filepath}", index=False)
+    adata_df_test.to_csv(f"{args.data_dir}{test_save_filepath}", index=False)
     print(f"Succcess!")
     print("=" * 40)
-    print(f"Saved adata files under {args.save_dir}")
+    print(f"Saved adata files under {args.data_dir}")
     print(f"\t adata_train: {train_save_filepath}")
     print(f"\t adata_test: {test_save_filepath}")
