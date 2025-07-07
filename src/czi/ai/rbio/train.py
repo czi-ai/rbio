@@ -69,7 +69,6 @@ class Reward:
         verifier_type: Optional[str] = "hard",
         answer_reward_on: bool = True,
         mention_reward_on: bool = True,
-        reasoning_advantage_reward_on: bool = True,
         format_reward_on: bool = True,
     ):
         self.model = model
@@ -84,7 +83,6 @@ class Reward:
 
         self.answer_reward_on = answer_reward_on
         self.mention_reward_on = mention_reward_on
-        self.reasoning_advantage_reward_on = reasoning_advantage_reward_on
         self.format_reward_on = format_reward_on
 
     def compute_reward(
@@ -122,14 +120,6 @@ class Reward:
             else:
                 mention_reward = 0
 
-            if self.reasoning_advantage_reward_on:
-                # reasoning_advantage_reward = compute_reasoning_advantage(
-                #    self.model, self.tokenizer, sys_p, usr_p, completion, label
-                # )
-                reasoning_advantage_reward = 0
-            else:
-                reasoning_advantage_reward = 0
-
             if self.answer_reward_on:
                 answer_reward = reward_answer_against_label(cmplt, clss, conf)
             else:
@@ -150,21 +140,13 @@ class Reward:
                     print(f"answer reward: {answer_reward}")
                     print(f"classes: {clss}")
                     print(f"confidences per class: {conf}")
-                if self.reasoning_advantage_reward_on:
-                    print(f"reasoning advantage: {reasoning_advantage_reward}")
 
-            total_score = (
-                format_reward
-                + 2.0 * answer_reward
-                + mention_reward
-                + reasoning_advantage_reward
-            )
+            total_score = format_reward + 2.0 * answer_reward + mention_reward
 
             metrics = {
                 "format_reward": format_reward,
                 "mention_reward": mention_reward,
                 "answer_reward": answer_reward,
-                "reasoning_adv_reward": reasoning_advantage_reward,
                 "total_score": total_score,
             }
             metrics_batch.append(metrics)
@@ -204,7 +186,6 @@ def train_fn(
     balance_pos_neg: bool = True,
     answer_reward_on: bool = True,
     mention_reward_on: bool = True,
-    reasoning_advantage_reward_on: bool = True,
     format_reward_on: bool = True,
 ):
     mlflow_run_name = os.environ.get(
@@ -257,7 +238,6 @@ def train_fn(
         verifier_type=verifier_type,
         answer_reward_on=answer_reward_on,
         mention_reward_on=mention_reward_on,
-        reasoning_advantage_reward_on=reasoning_advantage_reward_on,
         format_reward_on=format_reward_on,
     )
 
@@ -323,11 +303,6 @@ def train_fn(
     default=True,
 )
 @click.option(
-    "--reasoning-advantage-reward-on",
-    help="Whether to use reasoning advantage reward",
-    default=False,
-)
-@click.option(
     "--format-reward-on",
     help="Whether to use format reward",
     default=True,
@@ -343,7 +318,6 @@ def train(
     balance_pos_neg: bool,
     answer_reward_on: bool,
     mention_reward_on: bool,
-    reasoning_advantage_reward_on: bool,
     format_reward_on: bool,
 ):
     train_fn(
@@ -357,7 +331,6 @@ def train(
         balance_pos_neg=balance_pos_neg,
         answer_reward_on=answer_reward_on,
         mention_reward_on=mention_reward_on,
-        reasoning_advantage_reward_on=reasoning_advantage_reward_on,
         format_reward_on=format_reward_on,
     )
 
