@@ -23,7 +23,7 @@ def differential_expression_dataset_generator(dataset, tokenizer, balance_pos_ne
     df_false = dataset
 
     if balance_pos_neg:
-        df_true = dataset[dataset.label == 1]
+        df_true = dataset[dataset.label != 0]
         df_false = dataset[dataset.label == 0]
 
         dataset_len = max([len(df_true), len(df_false)]) * 2
@@ -67,6 +67,9 @@ class Reward:
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
         verifier_type: Optional[str] = "hard",
+        answer_reward_on: bool = True,
+        mention_reward_on: bool = True,
+        format_reward_on: bool = True,
     ):
         self.model = model
         self.tokenizer = tokenizer
@@ -77,6 +80,10 @@ class Reward:
         self.gene2ensembl_id = None
 
         self.metrics_collector = MetricsCollector()
+
+        self.answer_reward_on = answer_reward_on
+        self.mention_reward_on = mention_reward_on
+        self.format_reward_on = format_reward_on
 
     def compute_reward(
         self,
@@ -103,45 +110,43 @@ class Reward:
             user_prompt,
             task,
         ):
-            format_reward = composite_formatting_reward(cmplt)
+            if self.format_reward_on:
+                format_reward = composite_formatting_reward(cmplt)
+            else:
+                format_reward = 0
 
-            mention_reward = keywords_mentioned_in_think(cmplt, kw)
+            if self.mention_reward_on:
+                mention_reward = keywords_mentioned_in_think(cmplt, kw)
+            else:
+                mention_reward = 0
 
-            # reasoning_advantage_reward = compute_reasoning_advantage(
-            #    self.model, self.tokenizer, sys_p, usr_p, completion, label
-            # )
-
-            reasoning_advantage_reward = 0
-            answer_reward = 0
-
-            answer_reward = reward_answer_against_label(cmplt, clss, conf)
+            if self.answer_reward_on:
+                answer_reward = reward_answer_against_label(cmplt, clss, conf)
+            else:
+                answer_reward = 0
 
             if self.count % 10 == 0:
                 print(f"task: {tsk}")
                 print(f"system prompt: {sys_p}")
                 print(f"user prompt: {usr_p}")
                 print(f"completion: {cmplt}")
-                print(f"classes: {clss}")
-                print(f"confidences per class: {conf}")
-                print(f"label: {lbl}")
-                print(f"keywords: {kw}")
-                print(f"format reward: {format_reward}")
-                print(f"mention reward: {mention_reward}")
-                print(f"answer reward: {answer_reward}")
-                print(f"reasoning advantage: {reasoning_advantage_reward}")
+                if self.format_reward_on:
+                    print(f"format reward: {format_reward}")
+                if self.mention_reward_on:
+                    print(f"keyworkds: {keywords}")
+                    print(f"mention reward: {mention_reward}")
+                if self.answer_reward_on:
+                    print(f"label: {lbl}")
+                    print(f"answer reward: {answer_reward}")
+                    print(f"classes: {clss}")
+                    print(f"confidences per class: {conf}")
 
-            total_score = (
-                format_reward
-                + 2.0 * answer_reward
-                + mention_reward
-                + reasoning_advantage_reward
-            )
+            total_score = format_reward + 2.0 * answer_reward + mention_reward
 
             metrics = {
                 "format_reward": format_reward,
                 "mention_reward": mention_reward,
                 "answer_reward": answer_reward,
-                "reasoning_adv_reward": reasoning_advantage_reward,
                 "total_score": total_score,
             }
             metrics_batch.append(metrics)
@@ -178,6 +183,10 @@ def train_fn(
     num_generations: int = 4,
     verifier_type: str = "hard",
     trainer_args: Optional[RbioGRPOConfig] = None,
+    balance_pos_neg: bool = True,
+    answer_reward_on: bool = True,
+    mention_reward_on: bool = True,
+    format_reward_on: bool = True,
     max_train_steps: int = 100000,
     save_ckpt_every: int = 10000,
 ):
@@ -201,7 +210,11 @@ def train_fn(
 
     dataset = Dataset.from_generator(
         differential_expression_dataset_generator,
-        gen_kwargs={"dataset": df, "tokenizer": tokenizer},
+        gen_kwargs={
+            "dataset": df,
+            "tokenizer": tokenizer,
+            "balance_pos_neg": balance_pos_neg,
+        },
     )
 
     if trainer_args is None:
@@ -222,7 +235,14 @@ def train_fn(
 
     trainer_args.output_dir = str(output_dir)
 
-    reward = Reward(model, tokenizer, verifier_type=verifier_type)
+    reward = Reward(
+        model,
+        tokenizer,
+        verifier_type=verifier_type,
+        answer_reward_on=answer_reward_on,
+        mention_reward_on=mention_reward_on,
+        format_reward_on=format_reward_on,
+    )
 
     trainer = GRPOTrainer(
         model=model,
@@ -271,6 +291,26 @@ def train_fn(
     "--verifier-type", help="type of verifier, hard, mlp or soft", default="hard"
 )
 @click.option(
+    "--balance-pos-neg",
+    help="Whether to balance the positive and negative examples",
+    default=True,
+)
+@click.option(
+    "--answer-reward-on",
+    help="Whether to use answer reward",
+    default=True,
+)
+@click.option(
+    "--mention-reward-on",
+    help="Whether to use mention reward",
+    default=True,
+)
+@click.option(
+    "--format-reward-on",
+    help="Whether to use format reward",
+    default=True,
+)
+@click.option(
     "--max-train-steps",
     help="number of maximum steps to run training for",
     default=100000,
@@ -284,6 +324,10 @@ def train(
     batch_size: int,
     n_generations: int,
     verifier_type: str,
+    balance_pos_neg: bool,
+    answer_reward_on: bool,
+    mention_reward_on: bool,
+    format_reward_on: bool,
     max_train_steps: int,
     save_every: int,
 ):
@@ -295,6 +339,10 @@ def train(
         per_device_train_batch_size=batch_size,
         num_generations=n_generations,
         verifier_type=verifier_type,
+        balance_pos_neg=balance_pos_neg,
+        answer_reward_on=answer_reward_on,
+        mention_reward_on=mention_reward_on,
+        format_reward_on=format_reward_on,
         max_train_steps=max_train_steps,
         save_ckpt_every=save_every,
     )

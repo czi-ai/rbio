@@ -178,12 +178,24 @@ def compute_soft_class_confidences(x, gene_pair2scores, fields):
     return "|".join(class_confidences)
 
 
-def extract_binary_answer(text):
-    found = re.search(r"<answer>\s*(yes|no)\s*</answer>", text, re.IGNORECASE)
+def extract_answer(text):
+    found = re.search(r"<answer>\s*(.*?)\s*</answer>", text, re.IGNORECASE)
+
     if found:
         return found.group(1).strip().lower()
 
     return ""
+
+
+def extract_binary_answer(text):
+    found = re.search(r"<answer>\s*(yes|no)\s*</answer>", text, re.IGNORECASE)
+    if found:
+        if found.group(1).strip().lower() == "yes":
+            return True
+        if found.group(1).strip().lower() == "no":
+            return False
+
+    return None
 
 
 def extract_think(text, separator="\n"):
