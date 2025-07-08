@@ -124,7 +124,7 @@ class Reward:
                 print(f"classes: {clss}")
                 print(f"confidences per class: {conf}")
                 print(f"label: {lbl}")
-                print(f"keyworkds: {keywords}")
+                print(f"keywords: {kw}")
                 print(f"format reward: {format_reward}")
                 print(f"mention reward: {mention_reward}")
                 print(f"answer reward: {answer_reward}")
@@ -178,6 +178,8 @@ def train_fn(
     num_generations: int = 4,
     verifier_type: str = "hard",
     trainer_args: Optional[RbioGRPOConfig] = None,
+    max_train_steps: int = 100000,
+    save_ckpt_every: int = 10000,
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
@@ -214,7 +216,8 @@ def train_fn(
             model_name=model_name,
             verifier_type=verifier_type,
             batch_size=per_device_train_batch_size,
-            save_steps=5000,
+            save_steps=save_ckpt_every,
+            max_steps=max_train_steps,
         )
 
     trainer_args.output_dir = str(output_dir)
@@ -267,6 +270,12 @@ def train_fn(
 @click.option(
     "--verifier-type", help="type of verifier, hard, mlp or soft", default="hard"
 )
+@click.option(
+    "--max-train-steps",
+    help="number of maximum steps to run training for",
+    default=100000,
+)
+@click.option("--save-every", help="how often to checkpoint for", default=10000)
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -275,6 +284,8 @@ def train(
     batch_size: int,
     n_generations: int,
     verifier_type: str,
+    max_train_steps: int,
+    save_every: int,
 ):
     train_fn(
         dataset_path=dataset_path,
@@ -284,6 +295,8 @@ def train(
         per_device_train_batch_size=batch_size,
         num_generations=n_generations,
         verifier_type=verifier_type,
+        max_train_steps=max_train_steps,
+        save_ckpt_every=save_every,
     )
 
 
