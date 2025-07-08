@@ -1,0 +1,1 @@
+D: In a cell that has marker genes {0} expressed, is transcription factor {1} likely to be activated? The answer is either yes or no.
