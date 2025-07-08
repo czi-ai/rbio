@@ -316,7 +316,6 @@ def train_fn(
     default=100000,
 )
 @click.option("--save-every", help="how often to checkpoint for", default=10000)
-
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 # Transcriptformer Directories and filepaths
@@ -179,10 +178,9 @@ def compute_soft_class_confidences(x, gene_pair2scores, fields):
     return "|".join(class_confidences)
 
 
-
 def extract_answer(text):
     found = re.search(r"<answer>\s*(.*?)\s*</answer>", text, re.IGNORECASE)
-    
+
     if found:
         return found.group(1).strip().lower()
 
