@@ -14,6 +14,10 @@ from czi.ai.rbio.model.rewards import (
     keywords_mentioned_in_think,
     reward_answer_against_label,
 )
+from czi.ai.rbio.utils.checkpoints import (
+    MarkCheckpointCompleteCallback,
+    checkpoint_recovery,
+)
 from czi.ai.rbio.utils.metrics_collector import MetricsCollector
 
 
@@ -249,9 +253,12 @@ def train_fn(
         reward_funcs=reward.compute_reward,
         args=trainer_args,
         train_dataset=dataset,
+        callbacks=[MarkCheckpointCompleteCallback()],
     )
 
-    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    with checkpoint_recovery(output_dir) as recover_from_checkpoint:
+        resume_from_checkpoint = resume_from_checkpoint or recover_from_checkpoint
+        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
 
 # /mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/
@@ -262,10 +269,10 @@ def train_fn(
     required=True,
     multiple=True,
     default=[
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/hepg2-train-v0.1.1-no-augmentation.csv",
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv",
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv",
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/hepg2-train-v0.3.0.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.3.0.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.3.0.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.3.0.csv",
     ],
 )
 @click.option(

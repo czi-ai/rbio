@@ -14,7 +14,7 @@ def reward_answer_against_label(
     if answer is None:
         return 0.0
 
-    answer = answer.strip().lower()
+    answer = "yes" if answer else "no"
 
     possible_classes = classes.split("|")
     confidences = [float(c) for c in class_confidence.split("|")]
