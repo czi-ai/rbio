@@ -403,7 +403,7 @@ def train_fn(
 @click.option(
     "--resume",
     help="Whether to resume from one of the checkpoints or not",
-    default=False,
+    default=True,
 )
 @click.option("--batch-size", help="Batch-size", default=4)
 @click.option("--n-generations", help="Number of generations for GRPO", default=4)
