@@ -188,6 +188,9 @@ def extract_answer(text):
 
 
 def extract_binary_answer(text):
+    """
+    Extracts a binary yes/no answer
+    """
     found = re.search(r"<answer>\s*(yes|no)\s*</answer>", text, re.IGNORECASE)
     if found:
         return found.group(1).strip().lower()
@@ -203,6 +206,10 @@ def extract_think(text, separator="\n"):
 
 
 def extract_gene_info(text, gene):
+    """
+    Extracts gene information about a given gene
+    from <gene_info></gene_info>
+    """
     found = re.search(
         f"<gene_info>\s*(.*?{gene}.*?)\s*</gene_info>", text, re.IGNORECASE
     )
