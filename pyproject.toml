@@ -1,15 +1,17 @@
 [project]
 name = "czi-ai-rbio"
-version = "0.2.0"
+version = "0.3.0"
 description = ""
 authors = [
-    {name = "Fausto Milletari",email = "fmilletari@chanzuckerberg.com"}
+    {name = "Ana-Maria Istrate", email = "aistrate@chanzuckerberg.com"},
+    {name = "Fausto Milletari", email = "fmilletari@chanzuckerberg.com"},
+    {name = "Fabrizio Castrotorres", email = "fcastrotorres@chanzuckerberg.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "torch (>=2.6.0,<3.0.0)",
-    "transformers (>=4.51.3,<5.0.0)",
+    "transformers (>=4.51.3,<4.52.0)",
     "datasets (>=3.5.0,<4.0.0)",
     "trl (>=0.16.1,<0.17.0)",
     "click (>=8.1.8,<9.0.0)",

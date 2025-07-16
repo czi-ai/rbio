@@ -57,7 +57,7 @@ def benchmark_commercial_llm(
             "prompt": f"{system_prompt}\n{user_prompt}",
             "completion": response,
             "answer": answer,
-            "binary_answer": 1 if answer is True else (0 if answer is False else -1),
+            "binary_answer": 1 if answer == "yes" else (0 if answer == "no" else -1),
             "ground_truth": bool_label,
             "gene_perturbed": gene_perturbed,
             "gene_monitored": gene_monitored,

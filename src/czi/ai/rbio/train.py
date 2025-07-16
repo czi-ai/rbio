@@ -6,6 +6,7 @@ from typing import List, Optional, Union
 import click
 import numpy as np
 import pandas as pd
+from datasets import Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 
@@ -15,12 +16,11 @@ from czi.ai.rbio.model.rewards import (
     reward_answer_against_go_ontology,
     reward_answer_against_label,
 )
-from czi.ai.rbio.model.verifiers import (
-    instantiate_go_ontologies,
-    instantiate_rouge_scorer,
+from czi.ai.rbio.utils.checkpoints import (
+    MarkCheckpointCompleteCallback,
+    checkpoint_recovery,
 )
 from czi.ai.rbio.utils.metrics_collector import MetricsCollector
-from datasets import Dataset
 
 
 def differential_expression_dataset_generator(dataset, tokenizer, balance_pos_neg=True):
@@ -29,7 +29,7 @@ def differential_expression_dataset_generator(dataset, tokenizer, balance_pos_ne
     df_false = dataset
 
     if balance_pos_neg:
-        df_true = dataset[dataset.label == 1]
+        df_true = dataset[dataset.label != 0]
         df_false = dataset[dataset.label == 0]
 
         dataset_len = max([len(df_true), len(df_false)]) * 2
@@ -73,13 +73,15 @@ class Reward:
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
         verifier_type: Optional[Union[str, List[str]]] = "hard",
+        answer_reward_on: bool = True,
+        mention_reward_on: bool = True,
+        format_reward_on: bool = True,
     ):
         self.model = model
         self.tokenizer = tokenizer
         self.count = 0
-
         self.verifiers = verifier_type[0]  # this is assumed to be a single term for now
-
+        self.verifier_type = verifier_type
         self.gene2ensembl_id = None
 
         self.metrics_collector = MetricsCollector()
@@ -99,6 +101,9 @@ class Reward:
         self.use_go_ontology_verifier, self.go_ontology_type = (
             self.check_go_ontology_verifier(self.verifiers)
         )
+        self.answer_reward_on = answer_reward_on
+        self.mention_reward_on = mention_reward_on
+        self.format_reward_on = format_reward_on
 
     def check_go_ontology_verifier(self, verifier):
         """
@@ -190,32 +195,44 @@ class Reward:
             else:
                 answer_reward = reward_answer_against_label(cmplt, clss, conf)
 
+            if self.format_reward_on:
+                format_reward = composite_formatting_reward(cmplt)
+            else:
+                format_reward = 0
+
+            if self.mention_reward_on:
+                mention_reward = keywords_mentioned_in_think(cmplt, kw)
+            else:
+                mention_reward = 0
+
+            if self.answer_reward_on:
+                answer_reward = reward_answer_against_label(cmplt, clss, conf)
+            else:
+                answer_reward = 0
+
             if self.count % 10 == 0:
                 print(f"task: {tsk}")
                 print(f"system prompt: {sys_p}")
                 print(f"user prompt: {usr_p}")
                 print(f"completion: {cmplt}")
-                print(f"classes: {clss}")
-                print(f"confidences per class: {conf}")
-                print(f"label: {lbl}")
-                print(f"keyworkds: {kw}")
-                print(f"format reward: {format_reward}")
-                print(f"mention reward: {mention_reward}")
-                print(f"answer reward: {answer_reward}")
-                print(f"reasoning advantage: {reasoning_advantage_reward}")
 
-            total_score = (
-                format_reward
-                + 2.0 * answer_reward
-                + mention_reward
-                + reasoning_advantage_reward
-            )
+                if self.format_reward_on:
+                    print(f"format reward: {format_reward}")
+                if self.mention_reward_on:
+                    print(f"keyworkds: {keywords}")
+                    print(f"mention reward: {mention_reward}")
+                if self.answer_reward_on:
+                    print(f"label: {lbl}")
+                    print(f"answer reward: {answer_reward}")
+                    print(f"classes: {clss}")
+                    print(f"confidences per class: {conf}")
+
+            total_score = format_reward + 2.0 * answer_reward + mention_reward
 
             metrics = {
                 "format_reward": format_reward,
                 "mention_reward": mention_reward,
                 "answer_reward": answer_reward,
-                "reasoning_adv_reward": reasoning_advantage_reward,
                 "total_score": total_score,
             }
             metrics_batch.append(metrics)
@@ -252,6 +269,12 @@ def train_fn(
     num_generations: int = 4,
     verifier_type: Union[str, List[str]] = "hard",
     trainer_args: Optional[RbioGRPOConfig] = None,
+    balance_pos_neg: bool = True,
+    answer_reward_on: bool = True,
+    mention_reward_on: bool = True,
+    format_reward_on: bool = True,
+    max_train_steps: int = 100000,
+    save_ckpt_every: int = 10000,
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
@@ -274,7 +297,11 @@ def train_fn(
 
     dataset = Dataset.from_generator(
         differential_expression_dataset_generator,
-        gen_kwargs={"dataset": df, "tokenizer": tokenizer},
+        gen_kwargs={
+            "dataset": df,
+            "tokenizer": tokenizer,
+            "balance_pos_neg": balance_pos_neg,
+        },
     )
 
     if trainer_args is None:
@@ -289,22 +316,32 @@ def train_fn(
             model_name=model_name,
             verifier_type=verifier_type,
             batch_size=per_device_train_batch_size,
-            save_steps=10000,
-            max_steps=100000,
+            save_steps=save_ckpt_every,
+            max_steps=max_train_steps,
         )
 
     trainer_args.output_dir = str(output_dir)
 
-    reward = Reward(model, tokenizer, verifier_type=verifier_type)
+    reward = Reward(
+        model,
+        tokenizer,
+        verifier_type=verifier_type,
+        answer_reward_on=answer_reward_on,
+        mention_reward_on=mention_reward_on,
+        format_reward_on=format_reward_on,
+    )
 
     trainer = GRPOTrainer(
         model=model,
         reward_funcs=reward.compute_reward,
         args=trainer_args,
         train_dataset=dataset,
+        callbacks=[MarkCheckpointCompleteCallback()],
     )
 
-    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    with checkpoint_recovery(output_dir) as recover_from_checkpoint:
+        resume_from_checkpoint = resume_from_checkpoint or recover_from_checkpoint
+        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
 
 # /mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/
@@ -315,10 +352,10 @@ def train_fn(
     required=True,
     multiple=True,
     default=[
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/hepg2-train-v0.1.1-no-augmentation.csv",
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.1.1-no-augmentation.csv",
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.1.1-no-augmentation.csv",
-        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.1.1-no-augmentation.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/hepg2-train-v0.3.0.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/jurkat-train-v0.3.0.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/k562-train-v0.3.0.csv",
+        "/mnt/czi-sci-ai/project-rbio/AutoSync/Datasets/PertQA-DE/rpe1-train-v0.3.0.csv",
     ],
 )
 @click.option(
@@ -346,6 +383,32 @@ def train_fn(
     default=["GO_F_llh"],
     multiple=True,
 )
+@click.option(
+    "--balance-pos-neg",
+    help="Whether to balance the positive and negative examples",
+    default=True,
+)
+@click.option(
+    "--answer-reward-on",
+    help="Whether to use answer reward",
+    default=True,
+)
+@click.option(
+    "--mention-reward-on",
+    help="Whether to use mention reward",
+    default=True,
+)
+@click.option(
+    "--format-reward-on",
+    help="Whether to use format reward",
+    default=True,
+)
+@click.option(
+    "--max-train-steps",
+    help="number of maximum steps to run training for",
+    default=100000,
+)
+@click.option("--save-every", help="how often to checkpoint for", default=10000)
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -354,6 +417,12 @@ def train(
     batch_size: int,
     n_generations: int,
     verifier_type: str,
+    balance_pos_neg: bool,
+    answer_reward_on: bool,
+    mention_reward_on: bool,
+    format_reward_on: bool,
+    max_train_steps: int,
+    save_every: int,
 ):
     train_fn(
         dataset_path=dataset_path,
@@ -363,6 +432,12 @@ def train(
         per_device_train_batch_size=batch_size,
         num_generations=n_generations,
         verifier_type=verifier_type,
+        balance_pos_neg=balance_pos_neg,
+        answer_reward_on=answer_reward_on,
+        mention_reward_on=mention_reward_on,
+        format_reward_on=format_reward_on,
+        max_train_steps=max_train_steps,
+        save_ckpt_every=save_every,
     )
 
 

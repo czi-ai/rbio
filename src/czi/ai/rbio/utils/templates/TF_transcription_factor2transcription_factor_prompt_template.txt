@@ -1,0 +1,1 @@
+D: If transcription factor {0} is activated, is expression of gene {1} going to be high? The answer is either yes or no.

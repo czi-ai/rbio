@@ -1,11 +1,83 @@
 import hashlib
 import json
+import os
 import re
+from pathlib import Path
 
 import numpy as np
 
-# General system prompt
-SYSTEM_PROMPT = "A conversation between User and Biologist. The user asks a question, and the Biologist solves it. The biologist first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+# Transcriptformer Directories and filepaths
+TF_ROOT_DIR = "/mnt/czi-sci-ai/project-rbio-40t/transcriptformer/"
+
+TF_GENE2IDX = os.getenv(
+    "TF_GENE2IDX",
+    f"{TF_ROOT_DIR}gene2idx.pkl",
+)
+
+TF_GENE_PMIS = os.getenv(
+    "TF_GENE_PMIS",
+    f"{TF_ROOT_DIR}gene_pmis.pt",
+)
+
+TF_SIGNIFICANT_GENE_PAIRS = os.getenv(
+    "TF_SIGNIFICANT_GENE_PAIRS",
+    f"{TF_ROOT_DIR}significant_gene_pairs_0.01.pkl",
+)
+
+TF_LEAST_SIGNIFICANT_GENE_PAIRS = os.getenv(
+    "TF_LEAST_SIGNIFICANT_GENE_PAIRS",
+    "{TF_ROOT_DIR}least_significant_gene_pairs_0.01.pkl",
+)
+
+
+def read_template_prompt(prompt_type):
+    """
+    Returns a specific template for a given prompt_type
+    """
+    if prompt_type == "TF_PMIs":
+        prompt = read_prompt(f"{TEMPLATES_DIR}/TF_PMIs_prompt_template.txt")
+    elif prompt_type == "TF_MGs2TF":
+        prompt = read_prompt(
+            f"{TEMPLATES_DIR}/TF_marker_genes2transcription_factor_prompt_template.txt"
+        )
+    elif prompt_type == "TF_TFs2TF":
+        prompt = read_prompt(
+            f"{TEMPLATES_DIR}/TF_transcription_factor2transcription_factor_prompt_template.txt"
+        )
+    elif prompt_type == "annotation":
+        prompt = read_prompt(f"{TEMPLATES_DIR}/annotation_prompt_single_template.txt")
+    return prompt.split("D: ")[1]
+
+
+def read_deepseek_system_prompt():
+    """
+    Returns the system prompt used in DeepSeek
+    """
+    return read_prompt(
+        f"{TEMPLATES_DIR}/system_prompts/system_prompt_deepseek_adapted.txt"
+    )
+
+
+def read_prompt(prompt_filepath):
+    """
+    Reads a prompt from a given txt file
+
+    Args:
+        prompt_filepath: location of the prompt, as txt file
+
+    Return:
+        content of the txt file
+    """
+    try:
+        with open(prompt_filepath, "r") as file:
+            content = file.read()
+    except FileNotFoundError:
+        print(f"Error: The file from {prompt_filepath} was not found.")
+    except Exception as e:
+        print(f"An error occurredin reading the prompt from {prompt_filepath}: {e}")
+    return content
 
 
 def normalize_scores(m, sig_threshold, reverse=False):
@@ -104,6 +176,15 @@ def compute_soft_class_confidences(x, gene_pair2scores, fields):
     for cl in classes:
         class_confidences.append(str(int(cl == gt_class) * pmi))
     return "|".join(class_confidences)
+
+
+def extract_answer(text):
+    found = re.search(r"<answer>\s*(.*?)\s*</answer>", text, re.IGNORECASE)
+
+    if found:
+        return found.group(1).strip().lower()
+
+    return ""
 
 
 def extract_binary_answer(text):

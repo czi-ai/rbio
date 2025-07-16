@@ -8,72 +8,6 @@ from datasets import Dataset, load_dataset
 from perturbqa import auc_per_gene, load_de, load_dir
 
 
-def generate_prompt_column(
-    row, strict_binary=False, prompt_type="de_expression", cell_type="K562"
-):
-    """
-    Generates a prompt columns
-
-    Args:
-        dataset_name: pertq_dataset name
-    Returns:
-        train_dataset: training_dataset
-        test_dataset: test_dataset
-        X_train_keys: training keys for pertqa_dataset
-        X_test_keys: testing keys for pertqa_dataset
-    """
-    print(f"I am using a binary answer: {strict_binary} for the task {prompt_type}")
-    gene_A = row["pert"]
-    gene_B = row["gene"]
-
-    if prompt_type == "gene_de_expression":
-        row["prompt"] = (
-            f"Is a knockdown of {gene_A} in {cell_type} cells likely to result in differential expression of {gene_B}?"
-        )
-    elif prompt_type == "gene_dir_change":
-        row["prompt"] = (
-            f"Is a knockdown of {gene_A} in {cell_type} cells likely to result in an increase of {gene_B}?"
-        )
-    if strict_binary:
-        row["prompt"] += 'Give only a "Yes" or "No" answer.'
-    # else:
-    # row['prompt'] += 'At the end of your answer, give a Yes or No. Please provide your entire reasoning trace'
-    return row
-
-
-def generate_dataset_from_pertqa(dataset_name, logger, num_rows=-1):
-    """
-    Generates a HuggingFace dataset from a pertqa dataset. Returns the top num_rows from the dataset
-
-    Args:
-        dataset_name: pertq_dataset name
-    Returns:
-        train_dataset: training_dataset
-        test_dataset: test_dataset
-        X_train_keys: training keys for pertqa_dataset
-        X_test_keys: testing keys for pertqa_dataset
-    """
-    data_de = load_de(dataset_name)
-    X_train = data_de["train"]
-    X_test = data_de["test"]
-    logger.info(f"Total number of observations: {len(X_train)}")
-
-    X_train_keys = [(x["pert"], x["gene"]) for x in X_train][:num_rows]
-    X_test_keys = [(x["pert"], x["gene"]) for x in X_test][:num_rows]
-
-    data_dir = load_dir("k562")
-    train_dataset = Dataset.from_list(
-        [{"pert": x["pert"], "gene": x["gene"], "label": x["label"]} for x in X_train]
-    )
-    test_dataset = Dataset.from_list(
-        [{"pert": x["pert"], "gene": x["gene"], "label": x["label"]} for x in X_test]
-    )
-    if num_rows != -1:
-        train_dataset = train_dataset.select(range(num_rows))
-        test_dataset = test_dataset.select(range(num_rows))
-    return train_dataset, test_dataset, X_train_keys, X_test_keys
-
-
 def extract_dataset_from_pertqa(dataset_name: str, split: str):
     pertqa_path = os.environ.get("PERTQA_PATH", perturbqa.__path__[0])
     dataset_csv_path = os.path.join(pertqa_path, "datasets", dataset_name + ".csv")
@@ -103,9 +37,12 @@ def create_differential_expression_dataset_csv_dataset(
         "system_prompt": [],
         "user_prompt": [],
         "label": [],
+        "classes": [],
+        "class_confidences": [],
         "cell_line": [],
         "task": [],
         "dataset_name": [],
+        "keywords": [],
         "gene_perturbed": [],
         "gene_monitored": [],
     }
@@ -131,12 +68,22 @@ def create_differential_expression_dataset_csv_dataset(
             elif direction == "R":
                 label = 1 - curr_data["label"]
 
+            # Convert label to text and create confidence
+            classes = "no|yes"
+            class_confidences = "1.0|0.0" if label == 0 else "0.0|1.0"
+
+            # Create keywords string
+            keywords = f"{curr_data['pert']}|{curr_data['gene']}"
+
             dataset["system_prompt"].append(system_prompt)
             dataset["user_prompt"].append(question)
             dataset["label"].append(label)
+            dataset["classes"].append(classes)
+            dataset["class_confidences"].append(class_confidences)
             dataset["cell_line"].append(cell_line)
             dataset["task"].append("differential_expression")
             dataset["dataset_name"].append(perqa_dataset_name)
+            dataset["keywords"].append(keywords)
             dataset["gene_perturbed"].append(curr_data["pert"])
             dataset["gene_monitored"].append(curr_data["gene"])
 
