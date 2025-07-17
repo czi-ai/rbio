@@ -197,16 +197,6 @@ class Reward:
             user_prompt,
             task,
         ):
-            format_reward = composite_formatting_reward(cmplt, self.go_verifier != None)
-
-            mention_reward = keywords_mentioned_in_think(cmplt, kw)
-
-            # reasoning_advantage_reward = compute_reasoning_advantage(
-            #    self.model, self.tokenizer, sys_p, usr_p, completion, label
-            # )
-
-            reasoning_advantage_reward = 0
-            answer_reward = 0
 
             if self.use_go_ontology_verifier:
                 if self.gene2go_annotations is None:
@@ -231,7 +221,7 @@ class Reward:
                 answer_reward = reward_answer_against_label(cmplt, clss, conf)
 
             if self.format_reward_on:
-                format_reward = composite_formatting_reward(cmplt)
+                format_reward = composite_formatting_reward(cmplt, self.go_verifier != None)
             else:
                 format_reward = 0
 
