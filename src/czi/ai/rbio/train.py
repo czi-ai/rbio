@@ -16,6 +16,10 @@ from czi.ai.rbio.model.rewards import (
     reward_answer_against_go_ontology,
     reward_answer_against_label,
 )
+from czi.ai.rbio.model.verifiers import (
+    instantiate_go_ontologies,
+    instantiate_rouge_scorer,
+)
 from czi.ai.rbio.utils.checkpoints import (
     MarkCheckpointCompleteCallback,
     checkpoint_recovery,
