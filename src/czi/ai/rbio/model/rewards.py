@@ -302,7 +302,7 @@ def composite_formatting_reward(text, use_go):
                 # has_at_least_one_gene_info(text),
                 think_after_gene_info(text),
                 answer_after_gene_info(text),
-                # gene_infos_have_text(text),
+                gene_infos_have_text(text),
                 starts_with_gene_info(text),
             ]
         )
