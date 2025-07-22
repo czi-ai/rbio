@@ -6,7 +6,6 @@ from typing import List, Optional, Union
 import click
 import numpy as np
 import pandas as pd
-from datasets import Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 
@@ -25,6 +24,7 @@ from czi.ai.rbio.utils.checkpoints import (
     checkpoint_recovery,
 )
 from czi.ai.rbio.utils.metrics_collector import MetricsCollector
+from datasets import Dataset
 
 
 def differential_expression_dataset_generator(dataset, tokenizer, balance_pos_neg=True):
@@ -84,7 +84,7 @@ class Reward:
         self.model = model
         self.tokenizer = tokenizer
         self.count = 0
-        self.verifiers = verifier_type[0]  # this is assumed to be a single term for now
+        self.verifiers = verifier_type  # this is assumed to be a single term for now
         self.verifier_type = verifier_type
         self.gene2ensembl_id = None
 
@@ -109,7 +109,7 @@ class Reward:
         self.mention_reward_on = mention_reward_on
         self.format_reward_on = format_reward_on
 
-    def check_go_ontology_verifier(self, verifier):
+    def check_go_ontology_verifier(self, verifiers):
         """
         Check if there is a GO Ontology verifier in the list of verifiers
 
@@ -123,9 +123,11 @@ class Reward:
         """
         use_go_ontology = False
         go_verifier = []
-        if verifier.startswith("GO"):
-            use_go_ontology = True
-            go_verifier = verifier.split("GO_")[1].split("_")[0]
+        for verifier in verifiers:
+            if verifier.startswith("GO"):
+                use_go_ontology = True
+                go_verifier = verifier.split("GO_")[1].split("_")[0]
+                self.go_verifier = verifier.split("_")[2].split("_")[0]
         return use_go_ontology, go_verifier
 
     def normalize_reward_ema(self, reward):
@@ -197,11 +199,22 @@ class Reward:
             user_prompt,
             task,
         ):
+            format_reward = composite_formatting_reward(cmplt, self.go_verifier != None)
 
-            if self.use_go_ontology_verifier:
+            mention_reward = keywords_mentioned_in_think(cmplt, kw)
+
+            # reasoning_advantage_reward = compute_reasoning_advantage(
+            #    self.model, self.tokenizer, sys_p, usr_p, completion, label
+            # )
+
+            reasoning_advantage_reward = 0
+            answer_reward = 0
+
+            if self.use_go_ontology_verifier and usr_p.startswith(
+                " Is a knockdown of "
+            ):
                 if self.gene2go_annotations is None:
                     self.init_go_ontologies(self.go_ontology_type)
-                    self.go_verifier = self.verifiers.split("_")[2].split("_")[0]
                 kw_genes = kw.split("|")
                 answer_reward = reward_answer_against_go_ontology(
                     cmplt,
@@ -217,11 +230,16 @@ class Reward:
                 if self.reward_ema_mean == -np.inf:
                     self.reward_ema_mean = answer_reward
                 answer_reward = self.normalize_reward_ema(answer_reward)
-            else:
+
+            elif self.answer_reward_on:
                 answer_reward = reward_answer_against_label(cmplt, clss, conf)
+            else:
+                answer_reward = 0
 
             if self.format_reward_on:
-                format_reward = composite_formatting_reward(cmplt, self.go_verifier != None)
+                format_reward = composite_formatting_reward(
+                    cmplt, self.use_go_ontology_verifier
+                )
             else:
                 format_reward = 0
 
@@ -229,11 +247,6 @@ class Reward:
                 mention_reward = keywords_mentioned_in_think(cmplt, kw)
             else:
                 mention_reward = 0
-
-            if self.answer_reward_on:
-                answer_reward = reward_answer_against_label(cmplt, clss, conf)
-            else:
-                answer_reward = 0
 
             if self.count % 10 == 0:
                 print(f"task: {tsk}")
