@@ -64,13 +64,13 @@ def instantiate_go_ontologies(go_ontology_type):
             else:
                 gene2annotation_c[g] = ann
         gene2annotation = gene2annotation_c
-        print("annotation dict here")
-        print(
-            gene2annotation_c["CEBPB"],
-            gene2annotation_f["CEBPB"],
-            gene2annotation_p["CEBPB"],
-            gene2annotation["CEBPB"],
-        )
+        # print("annotation dict here")
+        # print(
+        #     gene2annotation_c["CEBPB"],
+        #     gene2annotation_f["CEBPB"],
+        #     gene2annotation_p["CEBPB"],
+        #     gene2annotation["CEBPB"],
+        # )
     return gene2annotation
 
 
