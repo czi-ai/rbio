@@ -53,9 +53,24 @@ def instantiate_go_ontologies(go_ontology_type):
         gene2annotation_c = read_go_df(f"{GO_ONTOLOGIES_FILEPATH}gene_ontology_C.csv")
         gene2annotation_p = read_go_df(f"{GO_ONTOLOGIES_FILEPATH}gene_ontology_P.csv")
         gene2annotation_f = read_go_df(f"{GO_ONTOLOGIES_FILEPATH}gene_ontology_F.csv")
-        gene2annotation_c.update(gene2annotation_p)
-        gene2annotation_c.update(gene2annotation_f)
+        for g, ann in gene2annotation_p.items():
+            if g in gene2annotation_c:
+                gene2annotation_c[g] = gene2annotation_c[g] + ann
+            else:
+                gene2annotation_c[g] = ann
+        for g, ann in gene2annotation_f.items():
+            if g in gene2annotation_c:
+                gene2annotation_c[g] = gene2annotation_c[g] + ann
+            else:
+                gene2annotation_c[g] = ann
         gene2annotation = gene2annotation_c
+        print("annotation dict here")
+        print(
+            gene2annotation_c["CEBPB"],
+            gene2annotation_f["CEBPB"],
+            gene2annotation_p["CEBPB"],
+            gene2annotation["CEBPB"],
+        )
     return gene2annotation
 
 
@@ -179,6 +194,10 @@ def verify_gene_info_llh(gene, gene2go_annotations, model, tokenizer, go_ontolog
         gene_annotation = gene_annotation_f
     elif go_ontology_type == "P":
         gene_annotation = gene_annotation_p
+    else:
+        gene_annotation = ". ".join(
+            [gene_annotation_c, gene_annotation_f, gene_annotation_p]
+        )
 
     # Tokenize gene_annotation
     input_ids = tokenizer.encode(gene_annotation, return_tensors="pt").long()
