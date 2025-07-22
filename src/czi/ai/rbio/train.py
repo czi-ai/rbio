@@ -255,7 +255,7 @@ class Reward:
                 if self.format_reward_on:
                     print(f"format reward: {format_reward}")
                 if self.mention_reward_on:
-                    print(f"keyworkds: {keywords}")
+                    print(f"keyworkds: {kw}")
                     print(f"mention reward: {mention_reward}")
                 if self.answer_reward_on:
                     print(f"label: {lbl}")
