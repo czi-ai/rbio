@@ -210,9 +210,7 @@ class Reward:
             reasoning_advantage_reward = 0
             answer_reward = 0
 
-            if self.use_go_ontology_verifier and usr_p.startswith(
-                " Is a knockdown of "
-            ):
+            if self.use_go_ontology_verifier and "<gene_info>" in sys_p:
                 if self.gene2go_annotations is None:
                     self.init_go_ontologies(self.go_ontology_type)
                 kw_genes = kw.split("|")
