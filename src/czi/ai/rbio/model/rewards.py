@@ -223,6 +223,12 @@ def has_any_tag(text):
     return 1 if re.search(r"</?(think|answer)>", text) else 0
 
 
+def gene_info_has_enough_text(text):
+    gene_info = extract_gene_info(text, "")
+    word_count = len(re.findall(r"\b\w+\b", gene_info))
+    return 1 if word_count >= 10 else word_count / 10
+
+
 def think_after_gene_info(text):
     """
     For the GO Ontology soft verification case, check that the thinking
@@ -282,7 +288,7 @@ def composite_formatting_reward(text, use_go):
     checks = [
         at_least_one_think,
         low_untagged_ratio(text),
-        is_not_too_long(text),
+        # is_not_too_long(text),
         has_one_answer(text),
         answer_after_thinks(text),
         thinks_have_text(text) * at_least_one_think,
@@ -299,7 +305,7 @@ def composite_formatting_reward(text, use_go):
         checks = checks[:-1]
         checks.extend(
             [
-                # has_at_least_one_gene_info(text),
+                gene_info_has_enough_text(text),
                 think_after_gene_info(text),
                 answer_after_gene_info(text),
                 gene_infos_have_text(text),
