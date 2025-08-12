@@ -25,7 +25,6 @@ def download_sharded_checkpoint_from_s3(s3_client, s3_bucket, prefix, local_dir)
         s3_prefix: AWS S3 dir prefix for model weights location
         local_dir: directory where the model weights will be stored
     """
-    print("Getting here", s3_bucket, prefix)
     paginator = s3_client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=s3_bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
@@ -193,7 +192,8 @@ def inference_fn(
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     if not os.path.exists(local_dir):
-        download_sharded_checkpoint_from_s3(s3, aws_s3_bucket, aws_s3_prefix, local_dir)
+        print(f"Downloading model weights from {aws_s3_bucket}/{prefix}")
+        download_sharded_checkpoint_from_s3(s3, aws_s3_bucket, prefix, local_dir)
 
     model, tokenizer = load_model_and_tokenizer(base_model_name, local_dir, device)
 
@@ -209,7 +209,11 @@ def inference_fn(
 
 
 @click.command()
-@click.option("--aws_s3_bucket", help="aws_s3_bucket for the model weights", default="")
+@click.option(
+    "--aws_s3_bucket",
+    help="aws_s3_bucket for the model weights",
+    default="",
+)
 @click.option(
     "--aws_s3_prefix",
     help="AWS_S3_BUCKET_PREFIX for the model weights",
@@ -230,9 +234,6 @@ def inference_fn(
     default="results.csv",
 )
 def run_rbio_inference(
-    aws_access_key_id: str,
-    aws_access_access_key: str,
-    aws_access_secret_access_token: str,
     aws_s3_bucket: str,
     aws_s3_prefix: str,
     base_model_name: str,
@@ -256,9 +257,9 @@ def run_rbio_inference(
     ]
 
     inference_fn(
-        aws_access_key_id=aws_access_key_id,
-        aws_access_access_key=aws_access_access_key,
-        aws_access_secret_access_token=aws_access_secret_access_token,
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_access_access_key=AWS_SECRET_ACCESS_KEY,
+        aws_access_secret_access_token=AWS_SESSION_TOKEN,
         aws_s3_bucket=aws_s3_bucket,
         aws_s3_prefix=aws_s3_prefix,
         base_model_name=base_model_name,
