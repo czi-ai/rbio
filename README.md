@@ -1,4 +1,7 @@
 # rbio-1
+
+rbio-1 is a reasoning model that was trained using predictions from Virtual Cell Models (VCMs) as soft verification during training. 
+
 ![rbio Model Architecture](rbio-motivation-fig.png)
 
 
@@ -24,6 +27,9 @@ The model arguments are:
 | results_output_folder | optional folder where to save the results | predictions |
 | results_output_filename | optional filename for the results |results.csv |
 
+
+## Citation
+TBD
 
 ## Code of Conduct
 
