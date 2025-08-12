@@ -1,0 +1,7 @@
+transformers==4.51.3 
+safetensors==0.4.3 
+numpy<2
+torch 
+boto3
+click
+pandas
