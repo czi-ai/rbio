@@ -2,6 +2,8 @@
 
 rbio-1 is a reasoning model that was trained using predictions from Virtual Cell Models (VCMs) as soft verification during training. 
 
+The Rbio model is based on Qwen2.5-3B-Instruct, which is licensed under the Qwen Research License(https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/LICENSE). All modifications and further developments by CZI are released under the MIT License.
+
 ![rbio Model Architecture](rbio-motivation-fig.png)
 
 
