@@ -210,7 +210,7 @@ def inference_fn(
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     if not os.path.exists(local_dir):
-        print(f"Downloading model weights from {aws_s3_bucket}/{prefix}")
+        print(f"Downloading model weights from s3://{aws_s3_bucket}/{prefix}")
         download_sharded_checkpoint_from_s3(s3, aws_s3_bucket, prefix, local_dir)
 
     model, tokenizer = load_model_and_tokenizer(base_model_name, local_dir, device)
