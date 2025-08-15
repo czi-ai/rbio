@@ -30,6 +30,11 @@ The model arguments are:
 | results_output_filename | optional filename for the results |results.csv |
 
 
+### 2. Training Scripts
+The training scripts demonstrate a minimal example of RBIO training with soft verification. This implementation uses soft verification against a simplified biological perturbation model based on a multi-layer perceptron (MLP).
+For detailed instructions on running the training pipeline, see the README.md file in the `training/` subdirectory.
+
+
 ## Citation
 TBD
 
