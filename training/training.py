@@ -1,8 +1,5 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 # # Training Rbio (A Demo)
-# In this notebook we will demonstrate how to train Rbio on perturbation data obtained from 
+# In this script we will demonstrate how to train Rbio on perturbation data obtained from 
 # the PertQA dataset available originally published here https://github.com/genentech/PerturbQA and adapted to our use case.
 # 
 # Rbio implements LLM post-training using soft-verification mechanisms so that knowledge from biology models such as a virtual cell model (VCM) can be distilled and used within the LLM, rather than relying on hard ground truth labels obtained experimentally which are usually scarce and often costly.
@@ -13,37 +10,29 @@
 
 # ## Imports, global variables, random seeds
 
-# In[ ]:
-
-
-import ast
-import hashlib
-import json
 import os
-import pickle
-import random
-import re
-from typing import List, Optional
+from typing import List
 
-import numpy as np
 import pandas as pd
 import torch
 from torch import nn
 
 from datasets import Dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import GRPOConfig, GRPOTrainer
+from trl import GRPOTrainer
 
 from rewards import *
 
 from utils import (
-    compute_embeddings_hash,
     set_random_seeds,
     load_mlp_classifier,
     setup_model_and_tokenizer,
     create_training_config,
     mlp_classifier_inference
 )
+
+# Disabling logging
+os.environ["WANDB_DISABLED"] = "true"
+os.environ["DISABLE_MLFLOW_INTEGRATION"] = "true"
 
 # Training configuration
 MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
@@ -57,8 +46,8 @@ OUTPUT_DIR = "./checkpoints"
 STEP_COUNT = 0
 
 # MLP classifier configuration (mlp was not trained on k562 cells)
-MLP_MODEL_PATH = "./MLP-NO-k562-esm_emb/mlp_model.pt"
-EMBEDDING_FILE = "./MLP-NO-k562-esm_emb/esm_embedding_dictionary_filled.pkl"
+MLP_MODEL_PATH = "./mlp_model.pt"
+EMBEDDING_FILE = "./esm_embedding_dictionary_filled.pkl"
 
 # Dataset paths
 DATASET_PATHS = [
@@ -186,8 +175,6 @@ def create_mlp_labeled_dataset_generator(dataset_df: pd.DataFrame, tokenizer, ba
 # `keywords_mentioned_in_think` makes sure specific keywords (typically gene names) are mentioned during reasoning.
 # 
 # `compute_simple_reward` is used by the trainer to assign a reward to a generated trace.
-
-# In[ ]:
 
 
 def reward_answer_against_label(completion: str, classes: str, class_confidence: str) -> float:
@@ -320,8 +307,6 @@ def compute_simple_reward(
 
 # # Training 
 
-# In[ ]:
-
 
 print("Starting RBIO training with streaming MLP labeling...")
 
@@ -376,9 +361,3 @@ print("Training completed!")
 # ## Notes
 # - This code is a different implementation compared to the code that has been used to train the methods discussed in our paper "Rbio: ...." 
 # - If you are interested only in using the perturbation data we employ in this dataset, please refer to the original repository https://github.com/genentech/PerturbQA and cite the work from our colleagues at Genentech accordingly
-
-# In[ ]:
-
-
-
-

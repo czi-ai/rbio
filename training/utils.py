@@ -3,13 +3,12 @@ import json
 import os
 import pickle
 import random
-import re
 
 import numpy as np
 import torch
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import GRPOConfig, GRPOTrainer
+from trl import GRPOConfig
 
 
 def compute_embeddings_hash(emb_dict: dict) -> str:
