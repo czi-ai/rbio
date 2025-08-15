@@ -3,16 +3,15 @@ import re
 from getpass import getpass
 
 import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
 import click
 import pandas as pd
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.modeling_utils import load_sharded_checkpoint
+from tqdm import tqdm
 
-# These should be removed once we have the weights in a public bucket
-AWS_ACCESS_KEY_ID = os.environ["AWS_ACCESS_KEY_ID"]
-AWS_SECRET_ACCESS_KEY = os.environ["AWS_SECRET_ACCESS_KEY"]
-AWS_SESSION_TOKEN = os.environ["AWS_SESSION_TOKEN"]
 
 
 def download_sharded_checkpoint_from_s3(s3_client, s3_bucket, prefix, local_dir):
@@ -25,15 +24,44 @@ def download_sharded_checkpoint_from_s3(s3_client, s3_bucket, prefix, local_dir)
         s3_prefix: AWS S3 dir prefix for model weights location
         local_dir: directory where the model weights will be stored
     """
+    os.makedirs(local_dir, exist_ok=True)
+
+    # First, collect all files to download
+    files_to_download = []
     paginator = s3_client.get_paginator("list_objects_v2")
+
     for page in paginator.paginate(Bucket=s3_bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
             s3_key = obj["Key"]
-            rel_path = os.path.relpath(s3_key, prefix)
-            local_path = os.path.join(local_dir, rel_path)
+            filename = os.path.basename(s3_key)
+            if filename:  # Skip directories
+                files_to_download.append((s3_key, filename, obj["Size"]))
 
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            s3_client.download_file(s3_bucket, s3_key, local_path)
+    # Download with progress bar
+    for s3_key, filename, file_size in tqdm(files_to_download, desc="Downloading files"):
+        local_path = os.path.join(local_dir, filename)
+
+        # Check if file already exists and has correct size
+        if os.path.exists(local_path) and os.path.getsize(local_path) == file_size:
+            print(f"  Skipping {filename} (already downloaded)")
+            continue
+
+        class ProgressCallback:
+            def __init__(self, filename, file_size):
+                self.filename = filename
+                self.pbar = tqdm(total=file_size, unit='B', unit_scale=True, desc=f"  {filename}")
+
+            def __call__(self, bytes_transferred):
+                self.pbar.update(bytes_transferred)
+
+            def close(self):
+                self.pbar.close()
+
+        callback = ProgressCallback(filename, file_size)
+        try:
+            s3_client.download_file(s3_bucket, s3_key, local_path, Callback=callback)
+        finally:
+            callback.close()
 
 
 def load_model_and_tokenizer(model_name, model_checkpoint, device):
@@ -82,7 +110,6 @@ def ask_rbio_multiple_questions(
     answers = []
     think_traces = []
     reflections = []
-    answers_system_prompts = []
     for question in questions:
         responses = ask_rbio_single_question(
             system_prompt, question, device, model_ckpt, tokenizer
@@ -163,11 +190,7 @@ def ask_rbio_single_question(system_prompt, question, device, model_ckpt, tokeni
 
 
 def inference_fn(
-    aws_access_key_id,
-    aws_access_access_key,
-    aws_access_secret_access_token,
     aws_s3_bucket,
-    aws_s3_prefix,
     base_model_name,
     rbio_ckpt,
     system_prompt,
@@ -176,14 +199,9 @@ def inference_fn(
     results_output_folder,
     results_output_filename,
 ):
-    session = boto3.Session(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_access_access_key,
-        aws_session_token=aws_access_secret_access_token,  # Only if using temporary credentials
-    )
-    s3 = session.client("s3")
+    s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
 
-    prefix = f"rbio/{rbio_ckpt}/"
+    prefix = f"{rbio_ckpt}/"
 
     if not os.path.exists("model_weights"):
         os.makedirs("model_weights")
@@ -212,7 +230,7 @@ def inference_fn(
 @click.option(
     "--aws_s3_bucket",
     help="aws_s3_bucket for the model weights",
-    default="",
+    default="czi-rbio",
 )
 @click.option(
     "--aws_s3_prefix",
@@ -257,16 +275,12 @@ def run_rbio_inference(
     ]
 
     inference_fn(
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_access_access_key=AWS_SECRET_ACCESS_KEY,
-        aws_access_secret_access_token=AWS_SESSION_TOKEN,
         aws_s3_bucket=aws_s3_bucket,
-        aws_s3_prefix=aws_s3_prefix,
         base_model_name=base_model_name,
         rbio_ckpt=rbio_model_ckpt,
         system_prompt=system_prompt_orig_CoT,
         system_prompt_type="system_prompt_orig_CoT",
-        questions=[questions],
+        questions=questions,
         results_output_folder=results_output_folder,
         results_output_filename=results_output_filename,
     )
