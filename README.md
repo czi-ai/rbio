@@ -6,6 +6,21 @@ The Rbio model is based on Qwen2.5-3B-Instruct, which is licensed under the [Qwe
 
 ![rbio Model Architecture](rbio-motivation-fig.png)
 
+## Model Variants
+Rbio includes several variants based on the type of data or model used as a verifier during reinforcement learning.
+Model Variant Name | Task, Purpose, or Description | Access URL or AWS Download link
+| - | - | - |
+Rbio1-EXP | Post-trained using direct experimental data as a "hard verifier” for maximum accuracy on related tasks. | s3://czi-rbio/rbio1-EXP/
+Rbio1-MLP | Post-trained using a task-specific MLP as a "soft verifier”, demonstrating knowledge transfer from a smaller world model. | s3://czi-rbio/rbio1-MLP/
+Rbio1-TF | Post-trained using signals (e.g., PMI scores) from the Transcriptformer foundation model as a “soft verifier”. | s3://czi-rbio/rbio1-TF/
+Rbio1-GO | Post-trained using the Gene Ontology (GO) knowledge base as a “soft verifier” guiding the model with established biological facts. | s3://czi-rbio/rbio1-GO/
+Rbio1-GO-C | Post-trained using the Gene Ontology (GO) knowledge base as a “soft verifier” guiding the model with established biological facts via Rouge-C metric. | s3://czi-rbio/rbio1-GO-C/
+Rbio1-GO-F | Post-trained using the Gene Ontology (GO) knowledge base as a “soft verifier” guiding the model with established biological facts via Rouge-F metric. | s3://czi-rbio/rbio1-GO-F/
+Rbio1-GO+EXP | Post-trained using both experimental data acting as a “hard verifier” on the task at hand and Gene Ontology (GO) knowledge base as a “soft verifier” for biological facts consistency. | s3://czi-rbio/rbio1-GO+EXP/
+Rbio1-TF+EXP | Post-trained using both experimental data acting as a “hard verifier” on the task at hand and Transcriptformer foundation model as “soft verifier” using PMI scores. | s3://czi-rbio/rbio1-TF+EXP/
+Rbio1-TF+GO+EXP | Post-trained using: experimental data acting as a “hard verifier” on the task at hand; Transcriptformer foundation model as “soft verifier” using PMI scores; and Gene Ontology (GO) knowledge base as a “soft verifier” for biological facts consistency. | s3://czi-rbio/rbio1-TF+GO+EXP/
+Rbio1-TF+GO+MLP | Post-trained using: an MLP acting as a "soft verifier” of world-knowledge as seen through the lens of a smaller model; Transcriptformer foundation model as “soft verifier” using PMI scores; and Gene Ontology (GO) knowledge base as a “soft verifier” for biological facts consistency/ | s3://czi-rbio/rbio1-TF+GO+MLP/
+Rbio1-TF+GO+MLP+EXP | Post-trained using: experimental data acting as a “hard verifier” on the task at hand; Transcriptformer foundation model as “soft verifier” using PMI scores; Gene Ontology (GO) knowledge base as a “soft verifier” for biological facts consistency; and MLP as a "soft verifier” of world-knowledge as rendered via a smaller model. | s3://czi-rbio/rbio1-TF+GO+MLP+EXP/
 
 ## Usage
 
