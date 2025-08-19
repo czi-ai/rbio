@@ -4,6 +4,9 @@ rbio-1 is a reasoning model that was trained using predictions from Virtual Cell
 
 The Rbio model is based on Qwen2.5-3B-Instruct, which is licensed under the [Qwen Research License](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/LICENSE). All modifications and further developments by CZI are released under the MIT License.
 
+## Citation
+Ana-Maria Istrate, Fausto Milletari, Fabrizio Castrotorres, Jakub Tomczak, Michaela Torkar, Donghui Li, Theofanis Karaletsos. rbio-1 - training scientific reasoning LLMs with biological world models as soft verifiers (2025) bioRxiv. DOI: https://doi.org/10.1101/2025.08.18.670981
+
 ![rbio Model Architecture](rbio-motivation-fig.png)
 
 ## Model Variants
@@ -48,10 +51,6 @@ The model arguments are:
 ### 2. Training Scripts
 The training scripts demonstrate a minimal example of RBIO training with soft verification. This implementation uses soft verification against a simplified biological perturbation model based on a multi-layer perceptron (MLP).
 For detailed instructions on running the training pipeline, see the README.md file in the `training/` subdirectory.
-
-
-## Citation
-Ana-Maria Istrate, Fausto Milletari, Fabrizio Castrotorres, Jakub Tomczak, Michaela Torkar, Donghui Li, Theofanis Karaletsos. rbio-1 - training scientific reasoning LLMs with biological world models as soft verifiers (2025) bioRxiv. DOI: https://doi.org/10.1101/2025.08.18.670981
 
 ## Code of Conduct
 
