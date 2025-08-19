@@ -240,7 +240,7 @@ def inference_fn(
 @click.option(
     "--base_model_name", help="base model name", default="Qwen/Qwen2.5-3B-Instruct"
 )
-@click.option("--rbio_model_ckpt", help="rbio1-3b", default="rbio1-TF")
+@click.option("--rbio_model_ckpt", help="rbio1-TF", default="rbio1-TF")
 @click.option(
     "--results_output_folder",
     help="optional folder where to save the results",
