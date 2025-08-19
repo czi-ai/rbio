@@ -40,7 +40,7 @@ N_STEPS = 100000
 BATCH_SIZE = 4
 NUM_GENERATIONS = 4
 SAVE_EVERY = 10000
-OUTPUT_DIR = "./checkpoints"
+OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "./checkpoints")
 
 # Global step counter
 STEP_COUNT = 0

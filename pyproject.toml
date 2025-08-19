@@ -1,0 +1,18 @@
+[project]
+name = "work"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3>=1.40.13",
+    "click>=8.2.1",
+    "datasets>=4.0.0",
+    "deepspeed>=0.17.4",
+    "numpy<2",
+    "pandas>=2.3.1",
+    "safetensors==0.4.3",
+    "torch>=2.8.0",
+    "transformers==4.51.3",
+    "trl>=0.19.1",
+]
