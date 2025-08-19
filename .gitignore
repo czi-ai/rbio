@@ -134,3 +134,7 @@ results/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Checkpoints
+*.pt
+*.pkl
