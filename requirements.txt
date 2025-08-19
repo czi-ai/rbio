@@ -1,7 +1,9 @@
-transformers==4.51.3 
-safetensors==0.4.3 
+transformers==4.51.3
+safetensors==0.4.3
 numpy<2
-torch 
+torch
 boto3
 click
 pandas
+datasets
+trl
