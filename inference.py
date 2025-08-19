@@ -233,11 +233,6 @@ def inference_fn(
     default="czi-rbio",
 )
 @click.option(
-    "--aws_s3_prefix",
-    help="AWS_S3_BUCKET_PREFIX for the model weights",
-    default="rbio1-TF",
-)
-@click.option(
     "--base_model_name", help="base model name", default="Qwen/Qwen2.5-3B-Instruct"
 )
 @click.option("--rbio_model_ckpt", help="rbio1-TF", default="rbio1-TF")
@@ -253,7 +248,6 @@ def inference_fn(
 )
 def run_rbio_inference(
     aws_s3_bucket: str,
-    aws_s3_prefix: str,
     base_model_name: str,
     rbio_model_ckpt: str,
     results_output_folder: str,
