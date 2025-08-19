@@ -36,7 +36,7 @@ For detailed instructions on running the training pipeline, see the README.md fi
 
 
 ## Citation
-TBD
+Ana-Maria Istrate, Fausto Milletari, Fabrizio Castrotorres, Jakub Tomczak, Michaela Torkar, Donghui Li, Theofanis Karaletsos. rbio-1 - training scientific reasoning LLMs with biological world models as soft verifiers (2025) bioRxiv. DOI: https://doi.org/10.1101/2025.08.18.670981
 
 ## Code of Conduct
 
