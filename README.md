@@ -1,5 +1,4 @@
 # rbio-1
-
 ![rbio Model Architecture](rbio_Brain+Cell.png)
 
 rbio-1 is a reasoning model that was trained using predictions from Virtual Cell Models (VCMs) as soft verification during training. 
