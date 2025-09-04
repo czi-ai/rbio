@@ -6,6 +6,7 @@ from typing import List, Optional, Union
 import click
 import numpy as np
 import pandas as pd
+from datasets import Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 
@@ -24,7 +25,6 @@ from czi.ai.rbio.utils.checkpoints import (
     checkpoint_recovery,
 )
 from czi.ai.rbio.utils.metrics_collector import MetricsCollector
-from datasets import Dataset
 
 
 def differential_expression_dataset_generator(dataset, tokenizer, balance_pos_neg=True):
@@ -143,16 +143,15 @@ class Reward:
 
         """
         # Reward Mean and Variance get updated during training
+        old_mean = self.reward_ema_mean
         self.reward_ema_mean = (
             1 - self.reward_ema_norm_alpha
         ) * self.reward_ema_mean + self.reward_ema_norm_alpha * reward
 
         self.reward_ema_var = (
             1 - self.reward_ema_norm_alpha
-        ) * self.reward_ema_var + self.reward_ema_norm_alpha * (
-            reward - self.reward_ema_mean
-        ) ** 2
-        ema_std = (self.reward_ema_var + self.epsilon) ** 0.5
+        ) * self.reward_ema_var + self.reward_ema_norm_alpha * (reward - old_mean) ** 2
+        ema_std = max((self.reward_ema_var + self.epsilon) ** 0.5, 1e-3)
 
         # Reward gets normalized using updated mean and std
         norm_reward = (reward - self.reward_ema_mean) / ema_std
@@ -199,9 +198,6 @@ class Reward:
             user_prompt,
             task,
         ):
-            format_reward = composite_formatting_reward(cmplt, self.go_verifier != None)
-
-            mention_reward = keywords_mentioned_in_think(cmplt, kw)
 
             # reasoning_advantage_reward = compute_reasoning_advantage(
             #    self.model, self.tokenizer, sys_p, usr_p, completion, label
@@ -236,7 +232,7 @@ class Reward:
 
             if self.format_reward_on:
                 format_reward = composite_formatting_reward(
-                    cmplt, self.use_go_ontology_verifier
+                    cmplt, self.use_go_ontology_verifier and "<gene_info>" in sys_p
                 )
             else:
                 format_reward = 0
@@ -294,6 +290,7 @@ class RbioGRPOConfig(GRPOConfig):
     datasets: Optional[List[str]] = field(default=None)
     verifier_type: Optional[str] = field(default=None)
     batch_size: Optional[int] = field(default=None)
+    learning_rate: Optional[float] = field(default=None)
 
 
 def train_fn(
@@ -311,10 +308,12 @@ def train_fn(
     format_reward_on: bool = True,
     max_train_steps: int = 100000,
     save_ckpt_every: int = 10000,
+    num_pods: int = 1,
+    default_lr: float = 1e-6,
 ):
     mlflow_run_name = os.environ.get(
         "MLFLOW_RUN_NAME",
-        f"{model_name}_{'-'.join(verifier_type)}_verifier_{num_generations}_generations_{per_device_train_batch_size}_batch_size",
+        f"{model_name}_{'-'.join(verifier_type)}_verifier_{num_generations}_generations_{num_pods}_num_pods_{per_device_train_batch_size}_batch_size",
     )
     print(mlflow_run_name)
 
@@ -354,6 +353,7 @@ def train_fn(
             batch_size=per_device_train_batch_size,
             save_steps=save_ckpt_every,
             max_steps=max_train_steps,
+            learning_rate=default_lr * num_pods,
         )
 
     trainer_args.output_dir = str(output_dir)
@@ -375,9 +375,9 @@ def train_fn(
         callbacks=[MarkCheckpointCompleteCallback()],
     )
 
-    with checkpoint_recovery(output_dir) as recover_from_checkpoint:
-        resume_from_checkpoint = resume_from_checkpoint or recover_from_checkpoint
-        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    # with checkpoint_recovery(output_dir) as recover_from_checkpoint:
+    #     resume_from_checkpoint = resume_from_checkpoint or recover_from_checkpoint
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
 
 @click.command()
@@ -444,6 +444,7 @@ def train_fn(
     default=100000,
 )
 @click.option("--save-every", help="how often to checkpoint for", default=10000)
+@click.option("--num-pods", help="number of pods used for training", default=1)
 def train(
     dataset_path: Union[os.PathLike, List[os.PathLike]],
     model_name: str,
@@ -458,21 +459,23 @@ def train(
     format_reward_on: bool,
     max_train_steps: int,
     save_every: int,
+    num_pods: int,
 ):
     train_fn(
         dataset_path=dataset_path,
         model_name=model_name,
         output_dir=checkpoint_dir,
         resume_from_checkpoint=resume,
-        per_device_train_batch_size=batch_size,
+        per_device_train_batch_size=batch_size * num_pods,
         num_generations=n_generations,
         verifier_type=verifier_type,
         balance_pos_neg=balance_pos_neg,
         answer_reward_on=answer_reward_on,
         mention_reward_on=mention_reward_on,
         format_reward_on=format_reward_on,
-        max_train_steps=max_train_steps,
+        max_train_steps=int(max_train_steps / num_pods),
         save_ckpt_every=save_every,
+        num_pods=num_pods,
     )
 
 
