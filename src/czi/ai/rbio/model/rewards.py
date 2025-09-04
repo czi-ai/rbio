@@ -226,7 +226,7 @@ def has_any_tag(text):
 def gene_info_has_enough_text(text):
     gene_info = extract_gene_info(text, "")
     word_count = len(re.findall(r"\b\w+\b", gene_info))
-    return 1 if word_count >= 10 else word_count / 10
+    return 1 if word_count >= 100 else word_count / 100
 
 
 def think_after_gene_info(text):
