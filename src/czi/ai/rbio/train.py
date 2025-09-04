@@ -157,7 +157,7 @@ class Reward:
         norm_reward = (reward - self.reward_ema_mean) / ema_std
 
         # Map to [0, 1] interval by passing through the sigmoid fn
-        norm_reward = 1 / (1 + np.exp(-norm_reward))
+        # norm_reward = 1 / (1 + np.exp(-norm_reward))
         return norm_reward
 
     def init_go_ontologies(self, go_ontology_type):
@@ -223,7 +223,7 @@ class Reward:
                 # initialize moving average with initial reward
                 if self.reward_ema_mean == -np.inf:
                     self.reward_ema_mean = answer_reward
-                answer_reward = self.normalize_reward_ema(answer_reward)
+                # answer_reward = self.normalize_reward_ema(answer_reward)
 
             elif self.answer_reward_on:
                 answer_reward = reward_answer_against_label(cmplt, clss, conf)
@@ -326,6 +326,8 @@ def train_fn(
         df = pd.concat(df_list)
     else:
         df = pd.read_csv(dataset_path)
+        
+    # df = df[:50]
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto")
