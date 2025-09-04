@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    adata = sc.read_h5ad(f"{args.data_dir}h5ads/{args.h5ad_filename}")
+    adata = sc.read_h5ad(f"{args.data_dir}/{args.h5ad_filename}")
     X = adata.X.toarray()
     num_genes = args.topk_genes
     num_obs = X.shape[0]
@@ -111,7 +111,13 @@ if __name__ == "__main__":
         .replace("{1}", x)
         .replace("{2}", args.predict_label)
     )
-    adata_df["system_prompt"] = read_deepseek_system_prompt()
+    adata_df["system_prompt"] = "You are an AI model trained as a Biologist through reinforcement learning. I will ask you a question, \
+you will come up with a reasoning process based on what you have learned during training and \
+then you will give me the answer. You will consider information learned during training about transcription factors, \
+gene regulatory networks and gene co-expression and interaction patterns. \
+The reasoning process and answer are enclosed within \
+<think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>. You will provide the reasoning step-by-step, using detailed biological knowledge from training."
+    # read_deepseek_system_prompt()
     adata_df["dataset_name"] = args.h5ad_filename
     adata_df["task"] = f"{args.predict_label}_prediction"
     adata_df = adata_df[
@@ -132,41 +138,42 @@ if __name__ == "__main__":
     ]
     adata_df["keywords"] = ""
 
-    adata_df_train, adata_df_test = train_test_split(
-        adata_df, test_size=0.2, random_state=RND_SEED
-    )
-    train_classes = adata_df_train["label"].unique()
+    # adata_df_train, adata_df_test = train_test_split(
+    #     adata_df, test_size=1.0, random_state=RND_SEED
+    # )
+    # train_classes = adata_df_train["label"].unique()
+    adata_df_test = adata_df.copy()
     test_classes = adata_df_test["label"].unique()
 
-    adata_df_train["classes"] = "|".join(train_classes)
+    # adata_df_train["classes"] = "|".join(train_classes)
     adata_df_test["classes"] = "|".join(test_classes)
 
-    adata_df_train["class_confidences"] = adata_df_train.apply(
-        compute_class_confidences, 1
-    )
+    # adata_df_train["class_confidences"] = adata_df_train.apply(
+    #     compute_class_confidences, 1
+    # )
     adata_df_test["class_confidences"] = adata_df_test.apply(
         compute_class_confidences, 1
     )
 
     if args.multiple_choice:
-        adata_df_train["user_prompt"] = adata_df_train.apply(
-            lambda x: x["user_prompt"]
-            + f" The answer is one of: {' | '.join(x['classes'].split('|'))}",
-            1,
-        )
+        # adata_df_train["user_prompt"] = adata_df_train.apply(
+        #     lambda x: x["user_prompt"]
+        #     + f" The answer is one of: {' | '.join(x['classes'].split('|'))}",
+        #     1,
+        # )
         adata_df_test["user_prompt"] = adata_df_test.apply(
             lambda x: x["user_prompt"]
             + f" The answer is one of: {' | '.join(x['classes'].split('|'))}",
             1,
         )
 
-    train_save_filepath = f"{args.h5ad_filename.split('.h5ad')[0]}_top_{num_genes}_genes-train-{args.dataset_version}-multiple-choice-{args.multiple_choice}.csv"
-    test_save_filepath = f"{args.h5ad_filename.split('.h5ad')[0]}_top_{num_genes}_genes-test-{args.dataset_version}-multiple-choice-{args.multiple_choice}.csv"
+    # train_save_filepath = f"{args.h5ad_filename.split('.h5ad')[0]}_top_{num_genes}_genes-train-{args.dataset_version}-multiple-choice-{args.multiple_choice}.csv"
+    test_save_filepath = f"{args.h5ad_filename.split('.h5ad')[0]}_top_{num_genes}_genes-test-{args.dataset_version}-multiple-choice-{args.multiple_choice}-v0.2.0-system_prompt_self_aware_extra_CoT3.csv"
 
-    adata_df_train.to_csv(f"{args.data_dir}{train_save_filepath}", index=False)
+    # adata_df_train.to_csv(f"{args.data_dir}{train_save_filepath}", index=False)
     adata_df_test.to_csv(f"{args.data_dir}{test_save_filepath}", index=False)
     print(f"Succcess!")
     print("=" * 40)
     print(f"Saved adata files under {args.data_dir}")
-    print(f"\t adata_train: {train_save_filepath}")
+    # print(f"\t adata_train: {train_save_filepath}")
     print(f"\t adata_test: {test_save_filepath}")
