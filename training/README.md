@@ -1,5 +1,5 @@
 # Training
-The training code contained in this repository is an example of how to post-train an LLM with the methodology introduced by Rbio. We also provide a Colab notebook with a similar example. Visit [Virtual Cell Platform](https://virtualcellmodels.cziscience.com).
+The training code contained in this repository is an example of how to post-train an LLM with the methodology introduced by Rbio. We also provide a Colab notebook with a similar example. Visit [XXXX](https://virtualcellmodels.cziscience.com).
 
 ## Required files
 In order to run this code you will need to download the following files from [Google Drive](https://drive.google.com/drive/folders/1RSrnjTxikjrvZfKfOfUHti5Jwih-xLdw?usp=drive_link).
